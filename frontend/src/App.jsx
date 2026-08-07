@@ -5,8 +5,9 @@ export default function App() {
     { id: 'p1', name: 'Khai Trương Cửa Hàng' },
     { id: 'p2', name: 'Marketing & Quảng Cáo' }
   ]);
-  const [currentView, setCurrentView] = useState('overview'); // 'overview' hoặc 'p1', 'p2'...
+  const [currentView, setCurrentView] = useState('overview'); // 'overview' hoặc ID dự án
   const [newProjectName, setNewProjectName] = useState('');
+  const [checklistFilter, setChecklistFilter] = useState('all'); // 'all', 'pending', 'completed'
 
   const [tasks, setTasks] = useState([
     {
@@ -122,7 +123,24 @@ export default function App() {
 
   const columns = ['Cần Làm', 'Đang Làm', 'Đã Xong'];
 
-  // Thống kê tổng quan cho Toàn bộ ứng dụng
+  // Gom tất cả Checklist từ mọi Task & Thư mục để hiển thị Bảng Tổng
+  const allChecklistItems = tasks.flatMap(task => {
+    const proj = projects.find(p => p.id === task.projectId);
+    return task.checklists.map(c => ({
+      ...c,
+      taskId: task.id,
+      taskTitle: task.title,
+      projectName: proj ? proj.name : 'Chưa phân loại'
+    }));
+  });
+
+  const filteredChecklist = allChecklistItems.filter(item => {
+    if (checklistFilter === 'pending') return !item.completed;
+    if (checklistFilter === 'completed') return item.completed;
+    return true;
+  });
+
+  // Thống kê tổng quan
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter(t => t.status === 'Đã Xong').length;
   const overallProgress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
@@ -133,14 +151,13 @@ export default function App() {
       <header className="bg-white border-b border-gray-200 px-6 py-4 shadow-sm flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Quản Lý Tiến Độ Dự Án</h1>
-          <p className="text-sm text-gray-500">Hệ thống theo dõi công việc & Tổng hợp tiến độ</p>
+          <p className="text-sm text-gray-500">Hệ thống theo dõi công việc & Bảng tổng hợp Checklist</p>
         </div>
       </header>
 
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar */}
         <aside className="w-64 bg-white border-r border-gray-200 p-4 flex flex-col">
-          {/* Nút Trang Tổng Hợp */}
           <button
             onClick={() => setCurrentView('overview')}
             className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-bold mb-4 flex items-center gap-2 transition-colors ${
@@ -173,7 +190,6 @@ export default function App() {
             ))}
           </div>
 
-          {/* Form thêm dự án */}
           <form onSubmit={handleAddProject} className="mt-4 pt-4 border-t border-gray-200 flex gap-2">
             <input
               type="text"
@@ -190,91 +206,154 @@ export default function App() {
 
         {/* Main Content */}
         <main className="flex-1 p-6 overflow-y-auto">
-          {/* VIEW 1: TRANG TỔNG HỢP (OVERVIEW) */}
           {currentView === 'overview' ? (
             <div className="space-y-6">
-              <h2 className="text-xl font-bold text-gray-800">📊 Tổng Quan Tất Cả Các Hạng Mục</h2>
+              <h2 className="text-xl font-bold text-gray-800">📊 Báo Cáo & Tổng Hợp Tiến Độ</h2>
 
-              {/* Card Thống kê nhanh */}
+              {/* Cards Thống kê */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
                   <p className="text-xs text-gray-500 font-medium">Tổng Thư Mục / Dự Án</p>
                   <p className="text-2xl font-bold text-gray-800 mt-1">{projects.length}</p>
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                  <p className="text-xs text-gray-500 font-medium">Tổng Cong Việc (Tasks)</p>
+                  <p className="text-xs text-gray-500 font-medium">Tổng Hạng Mục Task</p>
                   <p className="text-2xl font-bold text-blue-600 mt-1">{totalTasks}</p>
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                  <p className="text-xs text-gray-500 font-medium">Đã Hoàn Thành</p>
-                  <p className="text-2xl font-bold text-green-600 mt-1">{completedTasks}</p>
+                  <p className="text-xs text-gray-500 font-medium">Tổng Đầu Việc Checklist</p>
+                  <p className="text-2xl font-bold text-indigo-600 mt-1">{allChecklistItems.length}</p>
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                  <p className="text-xs text-gray-500 font-medium">Tiến Độ Chung</p>
-                  <p className="text-2xl font-bold text-indigo-600 mt-1">{overallProgress}%</p>
+                  <p className="text-xs text-gray-500 font-medium">Tiến Độ Hoàn Thành</p>
+                  <p className="text-2xl font-bold text-green-600 mt-1">{overallProgress}%</p>
                 </div>
               </div>
 
-              {/* Bảng Danh Sách Hạng Mục Đã Liệt Kê */}
+              {/* BẢNG TỔNG HỢP CHECKLIST TOÀN BỘ CÔNG VIỆC */}
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                      📋 Bảng Checklist Chi Tiết Tất Cả Công Việc
+                    </h3>
+                    <p className="text-xs text-gray-500">Liệt kê từng mục con cần thực hiện trong toàn bộ các dự án</p>
+                  </div>
+
+                  {/* Bộ lọc trạng thái */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setChecklistFilter('all')}
+                      className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                        checklistFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      Tất cả ({allChecklistItems.length})
+                    </button>
+                    <button
+                      onClick={() => setChecklistFilter('pending')}
+                      className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                        checklistFilter === 'pending' ? 'bg-yellow-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      Chưa xong ({allChecklistItems.filter(i => !i.completed).length})
+                    </button>
+                    <button
+                      onClick={() => setChecklistFilter('completed')}
+                      className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                        checklistFilter === 'completed' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      Đã xong ({allChecklistItems.filter(i => i.completed).length})
+                    </button>
+                  </div>
+                </div>
+
+                {/* Danh sách Table Checklist */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-semibold">
+                        <th className="p-3 w-10">Status</th>
+                        <th className="p-3">Nội dung Checklist</th>
+                        <th className="p-3">Hạng Mục Task</th>
+                        <th className="p-3">Thư Mục / Dự Án</th>
+                        <th className="p-3 text-right">Thao Tác</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {filteredChecklist.map(item => (
+                        <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="p-3">
+                            <input
+                              type="checkbox"
+                              checked={item.completed}
+                              onChange={() => toggleChecklist(item.taskId, item.id)}
+                              className="rounded text-blue-600 focus:ring-0 w-4 h-4 cursor-pointer"
+                            />
+                          </td>
+                          <td className={`p-3 font-medium ${item.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+                            {item.text}
+                          </td>
+                          <td className="p-3 text-gray-600 font-medium">{item.taskTitle}</td>
+                          <td className="p-3">
+                            <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md font-medium">
+                              📁 {item.projectName}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right">
+                            <button
+                              onClick={() => deleteChecklistItem(item.taskId, item.id)}
+                              className="text-red-400 hover:text-red-600 font-medium"
+                            >
+                              Xóa
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+
+                      {filteredChecklist.length === 0 && (
+                        <tr>
+                          <td colSpan="5" className="p-6 text-center text-gray-400 italic">
+                            Không có checklist nào phù hợp với bộ lọc.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Danh sách Thư Mục Chi Tiết bên dưới */}
               <div className="space-y-4">
+                <h3 className="text-base font-bold text-gray-800">📁 Danh Sách Các Dự Án</h3>
                 {projects.map(project => {
                   const projectTasks = tasks.filter(t => t.projectId === project.id);
                   const pTotal = projectTasks.length;
                   const pDone = projectTasks.filter(t => t.status === 'Đã Xong').length;
-                  const pDoing = projectTasks.filter(t => t.status === 'Đang Làm').length;
-                  const pTodo = projectTasks.filter(t => t.status === 'Cần Làm').length;
                   const pPercent = pTotal > 0 ? Math.round((pDone / pTotal) * 100) : 0;
 
                   return (
-                    <div key={project.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 pb-3 border-b border-gray-100">
-                        <div>
-                          <h3 
-                            onClick={() => setCurrentView(project.id)}
-                            className="text-lg font-bold text-blue-600 hover:underline cursor-pointer flex items-center gap-2"
-                          >
-                            📁 {project.name}
-                          </h3>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            Tổng số công việc: <span className="font-semibold">{pTotal}</span> | Cần làm: <span className="text-yellow-600">{pTodo}</span> | Đang làm: <span className="text-blue-600">{pDoing}</span> | Hoàn thành: <span className="text-green-600">{pDone}</span>
-                          </p>
-                        </div>
-
-                        <div className="flex items-center gap-4 w-full md:w-64">
-                          <div className="flex-1">
-                            <div className="flex justify-between text-xs text-gray-500 mb-1">
-                              <span>Tiến độ</span>
-                              <span className="font-semibold">{pPercent}%</span>
-                            </div>
-                            <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
-                              <div className="bg-blue-600 h-full transition-all duration-300" style={{ width: `${pPercent}%` }}></div>
-                            </div>
-                          </div>
-                          <button 
-                            onClick={() => setCurrentView(project.id)}
-                            className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg font-medium whitespace-nowrap"
-                          >
-                            Xem Chi Tiết $\rightarrow$
-                          </button>
-                        </div>
+                    <div key={project.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex justify-between items-center">
+                      <div>
+                        <h4 
+                          onClick={() => setCurrentView(project.id)}
+                          className="font-bold text-blue-600 hover:underline cursor-pointer"
+                        >
+                          📁 {project.name}
+                        </h4>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Tổng số Tasks: {pTotal} | Đã hoàn thành: {pDone}
+                        </p>
                       </div>
-
-                      {/* Danh sách Task thu gọn trong Hạng Mục */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        {projectTasks.map(task => (
-                          <div key={task.id} className="bg-gray-50 p-3 rounded-lg border border-gray-200 text-xs flex justify-between items-center">
-                            <span className="font-medium text-gray-700 truncate">{task.title}</span>
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap ${
-                              task.status === 'Đã Xong' ? 'bg-green-100 text-green-700' :
-                              task.status === 'Đang Làm' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'
-                            }`}>
-                              {task.status}
-                            </span>
-                          </div>
-                        ))}
-                        {projectTasks.length === 0 && (
-                          <p className="text-xs text-gray-400 italic">Thư mục này chưa có công việc nào.</p>
-                        )}
+                      <div className="flex items-center gap-4">
+                        <span className="text-xs font-semibold text-gray-600">{pPercent}%</span>
+                        <button 
+                          onClick={() => setCurrentView(project.id)}
+                          className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg font-medium"
+                        >
+                          Mở Kanban Board $\rightarrow$
+                        </button>
                       </div>
                     </div>
                   );
@@ -282,7 +361,7 @@ export default function App() {
               </div>
             </div>
           ) : (
-            /* VIEW 2: KHANBAN BOARD CHI TIẾT TỪNG THƯ MỤC */
+            /* VIEW CHI TIẾT DỰ ÁN (KANBAN BOARD) */
             <div>
               <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
                 <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
@@ -303,7 +382,6 @@ export default function App() {
                 </form>
               </div>
 
-              {/* Kanban Columns */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 align-top">
                 {columns.map(status => {
                   const statusTasks = tasks.filter(t => t.projectId === currentView && t.status === status);
