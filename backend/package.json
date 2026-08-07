@@ -1,0 +1,21 @@
+{
+  "name": "project-tracker-backend",
+  "version": "1.0.0",
+  "description": "API Backend cho ứng dụng Quản lý Tiến độ Dự án",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "prisma:generate": "prisma generate",
+    "prisma:deploy": "prisma migrate deploy"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.10.0",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "prisma": "^5.10.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}
