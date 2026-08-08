@@ -17,7 +17,7 @@ async function autoTranslateText(text, targetLang) {
   } catch (error) {
     console.error('Lỗi tự động dịch:', error);
   }
-  return text; // Trả về text gốc nếu lỗi mạng
+  return text;
 }
 
 function MainApp() {
@@ -26,7 +26,7 @@ function MainApp() {
 
   const isJa = i18n.language && i18n.language.startsWith('ja');
 
-  // Mảng dự án mẫu
+  // Danh sách dự án (Có thể xóa toàn bộ)
   const [projects, setProjects] = useState([
     { id: 'p1', nameVi: 'Khai Trương Cửa Hàng', nameJa: '店舗オープン' },
     { id: 'p2', nameVi: 'Marketing & Quảng Cáo', nameJa: 'マーケティング＆広告' }
@@ -37,7 +37,7 @@ function MainApp() {
   const [checklistFilter, setChecklistFilter] = useState('all');
   const [isTranslating, setIsTranslating] = useState(false);
 
-  // Mảng Task mẫu
+  // Danh sách Task mẫu
   const [tasks, setTasks] = useState([
     {
       id: 1,
@@ -88,7 +88,27 @@ function MainApp() {
   const getTaskTitle = (task) => isJa ? (task.titleJa || task.titleVi) : (task.titleVi || task.titleJa);
   const getChecklistText = (item) => isJa ? (item.textJa || item.textVi) : (item.textVi || item.textJa);
 
-  // XỬ LÝ THÊM DỰ ÁN MỚI -> TỰ ĐỘNG DỊCH
+  // XÓA DỰ ÁN (Xóa triệt để khỏi State và chọn lại trang Tổng Quan)
+  const handleDeleteProject = (projectId, e) => {
+    if (e) {
+      e.stopPropagation(); // Chống kích hoạt sự kiện click chọn dự án khi bấm nút xóa
+      e.preventDefault();
+    }
+    
+    const confirmMsg = isJa 
+      ? 'このプロジェクトと全てのタスクを削除しますか？' 
+      : 'Bạn có chắc chắn muốn xóa dự án này cùng tất cả công việc liên quan?';
+
+    if (window.confirm(confirmMsg)) {
+      setProjects(prevProjects => prevProjects.filter(p => p.id !== projectId));
+      setTasks(prevTasks => prevTasks.filter(t => t.projectId !== projectId));
+      if (currentView === projectId) {
+        setCurrentView('overview');
+      }
+    }
+  };
+
+  // THÊM DỰ ÁN MỚI
   const handleAddProject = async (e) => {
     e.preventDefault();
     if (!newProjectName.trim()) return;
@@ -104,14 +124,14 @@ function MainApp() {
       nameJa = await autoTranslateText(textInput, 'ja');
     }
 
-    const newProj = { id: Date.now().toString(), nameVi, nameJa };
+    const newProj = { id: 'p_' + Date.now(), nameVi, nameJa };
     setProjects(prev => [...prev, newProj]);
     setCurrentView(newProj.id);
     setNewProjectName('');
     setIsTranslating(false);
   };
 
-  // XỬ LÝ THÊM TASK MỚI -> TỰ ĐỘNG DỊCH
+  // THÊM TASK MỚI
   const handleAddTask = async (e) => {
     e.preventDefault();
     if (!newTaskTitle.trim()) return;
@@ -140,7 +160,7 @@ function MainApp() {
     setIsTranslating(false);
   };
 
-  // XỬ LÝ THÊM CHECKLIST MỚI -> TỰ ĐỘNG DỊCH
+  // THÊM CHECKLIST MỚI
   const handleAddChecklist = async (taskId, e) => {
     e.preventDefault();
     const text = newChecklistText[taskId];
@@ -211,7 +231,7 @@ function MainApp() {
       ...c,
       taskId: task.id,
       taskTitle: getTaskTitle(task),
-      projectName: proj ? getProjName(proj) : 'Chưa phân loại'
+      projectName: proj ? getProjName(proj) : (isJa ? '未分類' : 'Chưa phân loại')
     }));
   });
 
@@ -227,7 +247,7 @@ function MainApp() {
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col font-sans relative">
-      {/* Indicator khi đang tự động dịch */}
+      {/* Thông báo đang tự dịch */}
       {isTranslating && (
         <div className="fixed top-4 right-4 z-50 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg text-xs font-semibold flex items-center gap-2 animate-bounce">
           ⚡ {isJa ? '自動翻訳中...' : 'Đang tự động dịch...'}
@@ -273,21 +293,37 @@ function MainApp() {
 
           <div className="flex-1 overflow-y-auto space-y-1">
             {projects.map(p => (
-              <button
+              <div
                 key={p.id}
                 onClick={() => setCurrentView(p.id)}
-                className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex justify-between items-center ${
+                className={`group w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex justify-between items-center cursor-pointer ${
                   currentView === p.id 
                     ? 'bg-blue-50 text-blue-600 font-semibold' 
                     : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
-                <span className="truncate">📁 {getProjName(p)}</span>
-                <span className="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">
-                  {tasks.filter(t => t.projectId === p.id).length}
-                </span>
-              </button>
+                <span className="truncate pr-2">📁 {getProjName(p)}</span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">
+                    {tasks.filter(t => t.projectId === p.id).length}
+                  </span>
+                  {/* Nút Xóa Dự Án trong Sidebar */}
+                  <button
+                    onClick={(e) => handleDeleteProject(p.id, e)}
+                    className="text-red-400 hover:text-red-600 p-1 hover:bg-red-50 rounded transition-colors"
+                    title={isJa ? '削除' : 'Xóa dự án'}
+                  >
+                    🗑️
+                  </button>
+                </div>
+              </div>
             ))}
+
+            {projects.length === 0 && (
+              <p className="text-xs text-gray-400 italic p-2 text-center">
+                {isJa ? 'プロジェクトがありません' : 'Chưa có dự án nào'}
+              </p>
+            )}
           </div>
 
           <form onSubmit={handleAddProject} className="mt-4 pt-4 border-t border-gray-200 flex gap-2">
@@ -422,7 +458,7 @@ function MainApp() {
                 </div>
               </div>
 
-              {/* Danh sách Thư Mục */}
+              {/* Danh sách các Dự Án Chi Tiết ở Trang Tổng Quan */}
               <div className="space-y-4">
                 <h3 className="text-base font-bold text-gray-800">📁 {t('project_list_heading')}</h3>
                 {projects.map(project => {
@@ -436,7 +472,7 @@ function MainApp() {
                       <div>
                         <h4 
                           onClick={() => setCurrentView(project.id)}
-                          className="font-bold text-blue-600 hover:underline cursor-pointer"
+                          className="font-bold text-blue-600 hover:underline cursor-pointer text-base"
                         >
                           📁 {getProjName(project)}
                         </h4>
@@ -444,27 +480,50 @@ function MainApp() {
                           {t('total_tasks_label')}: {pTotal} | {t('completed_label')}: {pDone}
                         </p>
                       </div>
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-3">
                         <span className="text-xs font-semibold text-gray-600">{pPercent}%</span>
                         <button 
                           onClick={() => setCurrentView(project.id)}
-                          className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg font-medium"
+                          className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 py-1.5 rounded-lg font-medium"
                         >
                           {t('open_kanban')}
+                        </button>
+                        {/* Nút Xóa Dự Án ở Card Overview */}
+                        <button 
+                          onClick={(e) => handleDeleteProject(project.id, e)}
+                          className="text-xs text-red-500 hover:bg-red-50 px-2.5 py-1.5 rounded-lg font-medium border border-red-200 flex items-center gap-1 transition-colors"
+                          title={isJa ? '削除' : 'Xóa dự án'}
+                        >
+                          🗑️ {isJa ? '削除' : 'Xóa'}
                         </button>
                       </div>
                     </div>
                   );
                 })}
+
+                {projects.length === 0 && (
+                  <div className="bg-white rounded-xl border border-dashed border-gray-300 p-8 text-center text-gray-400 text-sm">
+                    {isJa ? 'プロジェクトがありません。新しいプロジェクトを追加してください。' : 'Chưa có dự án nào. Vui lòng tạo dự án mới ở góc dưới menu bên trái.'}
+                  </div>
+                )}
               </div>
             </div>
           ) : (
-            /* VIEW DỰ ÁN CHI TIẾT */
+            /* VIEW DỰ ÁN CHI TIẾT (KANBAN) */
             <div>
-              <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                  📂 {projects.find(p => p.id === currentView) ? getProjName(projects.find(p => p.id === currentView)) : 'Dự Án'}
-                </h2>
+              <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4 border-b border-gray-200 pb-4">
+                <div className="flex items-center gap-4">
+                  <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    📂 {projects.find(p => p.id === currentView) ? getProjName(projects.find(p => p.id === currentView)) : 'Dự Án'}
+                  </h2>
+                  {/* Nút Xóa Dự Án trong View Chi Tiết */}
+                  <button
+                    onClick={(e) => handleDeleteProject(currentView, e)}
+                    className="text-xs text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg border border-red-200 font-medium flex items-center gap-1 transition-colors"
+                  >
+                    🗑️ {isJa ? 'プロジェクトを削除' : 'Xóa dự án này'}
+                  </button>
+                </div>
 
                 <form onSubmit={handleAddTask} className="flex gap-2">
                   <input
