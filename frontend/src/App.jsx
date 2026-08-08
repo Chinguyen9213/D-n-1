@@ -4,15 +4,15 @@ import { useLanguageShortcut } from './useLanguageShortcut';
 
 function MainApp() {
   const { t, i18n } = useTranslation();
-  useLanguageShortcut(); // Kích hoạt phím tắt Alt + L
+  useLanguageShortcut();
 
   const [projects, setProjects] = useState([
     { id: 'p1', name: 'Khai Trương Cửa Hàng' },
     { id: 'p2', name: 'Marketing & Quảng Cáo' }
   ]);
-  const [currentView, setCurrentView] = useState('overview'); // 'overview' hoặc ID dự án
+  const [currentView, setCurrentView] = useState('overview');
   const [newProjectName, setNewProjectName] = useState('');
-  const [checklistFilter, setChecklistFilter] = useState('all'); // 'all', 'pending', 'completed'
+  const [checklistFilter, setChecklistFilter] = useState('all');
 
   const [tasks, setTasks] = useState([
     {
@@ -57,7 +57,6 @@ function MainApp() {
     i18n.changeLanguage(nextLang);
   };
 
-  // Thêm Dự án / Thư mục mới
   const handleAddProject = (e) => {
     e.preventDefault();
     if (!newProjectName.trim()) return;
@@ -67,7 +66,6 @@ function MainApp() {
     setNewProjectName('');
   };
 
-  // Thêm Task mới
   const handleAddTask = (e) => {
     e.preventDefault();
     if (!newTaskTitle.trim()) return;
@@ -134,7 +132,6 @@ function MainApp() {
 
   const columns = ['Cần Làm', 'Đang Làm', 'Đã Xong'];
 
-  // Gom tất cả Checklist từ mọi Task & Thư mục để hiển thị Bảng Tổng
   const allChecklistItems = tasks.flatMap(task => {
     const proj = projects.find(p => p.id === task.projectId);
     return task.checklists.map(c => ({
@@ -151,7 +148,6 @@ function MainApp() {
     return true;
   });
 
-  // Thống kê tổng quan
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter(t => t.status === 'Đã Xong').length;
   const overallProgress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
@@ -161,18 +157,18 @@ function MainApp() {
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-6 py-4 shadow-sm flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">{t('report_title')}</h1>
+          <h1 className="text-2xl font-bold text-gray-800">{t('report_title', 'Báo Cáo Tiến Độ Dự Án')}</h1>
           <p className="text-sm text-gray-500">Hệ thống theo dõi công việc & Bảng tổng hợp Checklist</p>
         </div>
         <div className="flex items-center gap-4">
           <span className="text-xs bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg border border-gray-200 hidden sm:inline-block">
-            💡 {t('shortcut_hint')}
+            💡 {t('shortcut_hint', 'Mẹo: Bấm Alt + L để chuyển ngôn ngữ nhanh')}
           </span>
           <button
             onClick={toggleLanguage}
             className="px-3 py-1.5 text-sm font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50 shadow-sm transition-colors"
           >
-            🌐 {i18n.language && i18n.language.startsWith('vi') ? '🇻🇳 Tiếng Việt' : '🇯🇵 日本語'}
+            🌐 {i18n.language && i18n.language.startsWith('ja') ? '🇯🇵 日本語' : '🇻🇳 Tiếng Việt'}
           </button>
         </div>
       </header>
@@ -296,7 +292,7 @@ function MainApp() {
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-semibold">
-                        <th className="p-3 w-10">{t('status_label')}</th>
+                        <th className="p-3 w-10">{t('status_label', 'Trạng thái')}</th>
                         <th className="p-3">Nội dung Checklist</th>
                         <th className="p-3">Hạng Mục Task</th>
                         <th className="p-3">Thư Mục / Dự Án</th>
@@ -414,7 +410,7 @@ function MainApp() {
                           {status === 'Cần Làm' && '🟡'}
                           {status === 'Đang Làm' && '🔵'}
                           {status === 'Đã Xong' && '🟢'}
-                          {status === 'Đã Xong' ? t('status_done') : status === 'Đang Làm' ? t('status_pending') : status}
+                          {status === 'Đã Xong' ? t('status_done', 'Đã Xong') : status === 'Đang Làm' ? t('status_pending', 'Đang Làm') : status}
                         </span>
                         <span className="bg-white text-gray-600 text-xs px-2 py-0.5 rounded-full font-medium border border-gray-200 shadow-sm">
                           {statusTasks.length}
@@ -486,7 +482,7 @@ function MainApp() {
                             </form>
 
                             <div className="pt-2 border-t border-gray-100 flex justify-between items-center">
-                              <span className="text-[11px] text-gray-400">{t('status_label')}</span>
+                              <span className="text-[11px] text-gray-400">{t('status_label', 'Trạng thái')}</span>
                               <select
                                 value={task.status}
                                 onChange={(e) => handleStatusChange(task.id, e.target.value)}
@@ -520,7 +516,7 @@ function MainApp() {
 
 export default function App() {
   return (
-    <Suspense fallback={<div className="p-6 text-center text-gray-500">Đang tải ngôn ngữ...</div>}>
+    <Suspense fallback={<div className="p-6 text-center text-gray-500">Đang tải ứng dụng...</div>}>
       <MainApp />
     </Suspense>
   );
