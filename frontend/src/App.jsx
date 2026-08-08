@@ -91,15 +91,14 @@ function MainApp({ user, onLogout }) {
   const [newTaskPriority, setNewTaskPriority] = useState('MEDIUM');
   const [newChecklistText, setNewChecklistText] = useState({});
 
-  // State hỗ trợ nhập tài liệu đính kèm cho từng task
-  const [newAttName, setNewAttName] = useState({});
-  const [newAttUrl, setNewAttUrl] = useState({});
+  // State lưu input tài liệu tạm thời cho từng Task ID
+  const [attNameInputs, setAttNameInputs] = useState({});
+  const [attUrlInputs, setAttUrlInputs] = useState({});
 
-  // State quản lý việc sửa tên Task trực tiếp
+  // State chỉnh sửa tên Task
   const [editingTaskId, setEditingTaskId] = useState(null);
-  const [editingTaskTitleText, setEditingTaskTitleText] = useState('');
+  const [editingTitleText, setEditingTitleText] = useState('');
 
-  // Các state lọc & chế độ hiển thị
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAssignee, setFilterAssignee] = useState('all');
   const [filterPriority, setFilterPriority] = useState('all');
@@ -174,29 +173,55 @@ function MainApp({ user, onLogout }) {
     }
   };
 
-  // Cập nhật tên Task đã tạo
+  // Hàm lưu tên Task sau khi sửa
   const handleSaveTaskTitle = async (taskId) => {
-    if (!editingTaskTitleText.trim()) {
+    if (!editingTitleText.trim()) {
       setEditingTaskId(null);
       return;
     }
     setIsTranslating(true);
-    const textInput = editingTaskTitleText.trim();
+    const textInput = editingTitleText.trim();
     let titleVi = textInput, titleJa = textInput;
     try {
       if (isJa) titleVi = await autoTranslateText(textInput, 'vi');
       else nameJa = await autoTranslateText(textInput, 'ja');
     } finally {
-      setTasks(prev => prev.map(t => {
-        if (t.id === taskId) {
-          return { ...t, titleVi, titleJa };
-        }
-        return t;
-      }));
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, titleVi, titleJa } : t));
       setEditingTaskId(null);
-      setEditingTaskTitleText('');
+      setEditingTitleText('');
       setIsTranslating(false);
     }
+  };
+
+  // Hàm Thêm File Đính Kèm chạy chuẩn xác bằng sự kiện click trực tiếp
+  const handleAddAttachment = (taskId) => {
+    const name = attNameInputs[taskId];
+    const url = attUrlInputs[taskId];
+    if (!name || !name.trim() || !url || !url.trim()) {
+      alert(isJa ? '資料名とURLの両方を入力してください。' : 'Vui lòng nhập đầy đủ tên tài liệu và đường dẫn URL!');
+      return;
+    }
+
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        const newAtt = { id: 'att_' + Date.now(), name: name.trim(), url: url.trim() };
+        return { ...t, attachments: [...(t.attachments || []), newAtt] };
+      }
+      return t;
+    }));
+
+    // Reset input của task đó
+    setAttNameInputs(prev => ({ ...prev, [taskId]: '' }));
+    setAttUrlInputs(prev => ({ ...prev, [taskId]: '' }));
+  };
+
+  const handleDeleteAttachment = (taskId, attId) => {
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        return { ...t, attachments: t.attachments.filter(a => a.id !== attId) };
+      }
+      return t;
+    }));
   };
 
   const handleAddChecklist = async (taskId, e) => {
@@ -219,33 +244,6 @@ function MainApp({ user, onLogout }) {
       setNewChecklistText(prev => ({ ...prev, [taskId]: '' }));
       setIsTranslating(false);
     }
-  };
-
-  // Sửa lỗi nút thêm tài liệu bằng cách hỗ trợ cả type="button" và bắt sự kiện click rõ ràng
-  const handleAddAttachment = (taskId) => {
-    const name = newAttName[taskId];
-    const url = newAttUrl[taskId];
-    if (!name || !name.trim() || !url || !url.trim()) return;
-
-    setTasks(prev => prev.map(t => {
-      if (t.id === taskId) {
-        const newAtt = { id: 'att_' + Date.now(), name: name.trim(), url: url.trim() };
-        return { ...t, attachments: [...(t.attachments || []), newAtt] };
-      }
-      return t;
-    }));
-
-    setNewAttName(prev => ({ ...prev, [taskId]: '' }));
-    setNewAttUrl(prev => ({ ...prev, [taskId]: '' }));
-  };
-
-  const handleDeleteAttachment = (taskId, attId) => {
-    setTasks(prev => prev.map(t => {
-      if (t.id === taskId) {
-        return { ...t, attachments: t.attachments.filter(a => a.id !== attId) };
-      }
-      return t;
-    }));
   };
 
   const handleStatusChange = (taskId, newStatus) => {
@@ -287,7 +285,7 @@ function MainApp({ user, onLogout }) {
       ...c,
       taskId: task.id,
       taskTitle: getTaskTitle(task),
-      projectName: proj ? getProjName(proj) : (isJa ? '未分類' : 'Chưa phân loại')
+      projectName: proj ? getProjName(proj) : 'Chưa phân loại'
     }));
   });
 
@@ -558,15 +556,15 @@ function MainApp({ user, onLogout }) {
                                   <div className="flex items-center gap-1 flex-1">
                                     <input
                                       type="text"
-                                      value={editingTaskTitleText}
-                                      onChange={(e) => setEditingTaskTitleText(e.target.value)}
+                                      value={editingTitleText}
+                                      onChange={(e) => setEditingTitleText(e.target.value)}
                                       className="border border-blue-500 rounded px-2 py-1 text-xs w-full focus:outline-none"
                                       autoFocus
                                     />
                                     <button
                                       type="button"
                                       onClick={() => handleSaveTaskTitle(task.id)}
-                                      className="bg-blue-600 text-white text-[11px] px-2 py-1 rounded shrink-0 font-medium"
+                                      className="bg-blue-600 text-white text-[11px] px-2.5 py-1 rounded shrink-0 font-bold"
                                     >
                                       {isJa ? '保存' : 'Lưu'}
                                     </button>
@@ -578,9 +576,9 @@ function MainApp({ user, onLogout }) {
                                       type="button"
                                       onClick={() => {
                                         setEditingTaskId(task.id);
-                                        setEditingTaskTitleText(getTaskTitle(task));
+                                        setEditingTitleText(getTaskTitle(task));
                                       }}
-                                      className="text-gray-400 hover:text-blue-600 text-xs opacity-0 group-hover/title:opacity-150 transition-opacity"
+                                      className="text-gray-400 hover:text-blue-600 text-xs opacity-60 hover:opacity-100 transition-opacity"
                                       title={isJa ? 'タイトルを編集' : 'Sửa tên task'}
                                     >
                                       ✏️
@@ -635,7 +633,7 @@ function MainApp({ user, onLogout }) {
                                 <button type="submit" disabled={isTranslating} className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs px-2.5 py-1.5 rounded font-medium">{isJa ? '追加' : 'Thêm'}</button>
                               </form>
 
-                              {/* 👉 KHU VỰC TÀI LIỆU VÀ FILE ĐÍNH KÈM (ĐÃ SỬA NÚT +) */}
+                              {/* QUẢN LÝ TÀI LIỆU & FILE ĐÍNH KÈM */}
                               <div className="pt-2 border-t border-gray-100 space-y-1.5">
                                 <p className="text-[11px] font-bold text-gray-600">📎 {isJa ? '添付資料' : 'Tài liệu / File đính kèm'}</p>
                                 {task.attachments && task.attachments.length > 0 ? (
@@ -657,22 +655,22 @@ function MainApp({ user, onLogout }) {
                                   <input 
                                     type="text" 
                                     placeholder={isJa ? '資料名 (例: 契約書)' : 'Tên tài liệu (VD: Hợp đồng)'} 
-                                    value={newAttName[task.id] || ''} 
-                                    onChange={(e) => setNewAttName({ ...newAttName, [task.id]: e.target.value })} 
+                                    value={attNameInputs[task.id] || ''} 
+                                    onChange={(e) => setAttNameInputs({ ...attNameInputs, [task.id]: e.target.value })} 
                                     className="w-full text-[11px] border border-gray-200 rounded px-2 py-1 focus:outline-none" 
                                   />
                                   <div className="flex gap-1">
                                     <input 
                                       type="text" 
                                       placeholder="URL (https://...)" 
-                                      value={newAttUrl[task.id] || ''} 
-                                      onChange={(e) => setNewAttUrl({ ...newAttUrl, [task.id]: e.target.value })} 
+                                      value={attUrlInputs[task.id] || ''} 
+                                      onChange={(e) => setAttUrlInputs({ ...attUrlInputs, [task.id]: e.target.value })} 
                                       className="w-full text-[11px] border border-gray-200 rounded px-2 py-1 focus:outline-none" 
                                     />
                                     <button 
                                       type="button" 
                                       onClick={() => handleAddAttachment(task.id)}
-                                      className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] px-2.5 py-1 rounded font-bold shrink-0 cursor-pointer"
+                                      className="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] px-3 py-1 rounded font-bold shrink-0 cursor-pointer shadow-sm"
                                     >
                                       +
                                     </button>
