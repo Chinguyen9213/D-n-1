@@ -30,24 +30,32 @@ function MainApp({ user, onLogout }) {
       try {
         const parsed = JSON.parse(saved);
         return parsed.map(t => {
-          let tVi = t.titleVi || t.title || 'Công việc chưa đặt tên';
-          let tJa = t.titleJa || t.title || tVi;
-          
-          if (tVi.includes('(') && tVi.endsWith(')')) {
-            tVi = tVi.split('(')[0].trim();
+          let rawVi = t.titleVi || t.title || '';
+          let rawJa = t.titleJa || t.title || '';
+
+          // Làm sạch nếu lỡ bị dính ngoặc kép hoặc giá trị sai từ localStorage cũ
+          if (rawVi.includes('(') && rawVi.endsWith(')')) {
+            rawVi = rawVi.split('(')[0].trim();
           }
+
+          const titleVi = rawVi || rawJa || 'Công việc chưa đặt tên';
+          const titleJa = rawJa || rawVi || titleVi;
 
           return {
             ...t,
-            titleVi: tVi,
-            titleJa: tJa !== tVi ? tJa : tVi,
+            titleVi,
+            titleJa,
             priority: t.priority || 'MEDIUM',
             attachments: t.attachments || [],
-            checklists: (t.checklists || []).map(c => ({
-              ...c,
-              textVi: c.textVi || c.text || 'Mục con',
-              textJa: c.textJa || c.text || (c.textVi || c.text || 'Mục con')
-            }))
+            checklists: (t.checklists || []).map(c => {
+              const cVi = c.textVi || c.text || 'Mục con';
+              const cJa = c.textJa || c.text || cVi;
+              return {
+                ...c,
+                textVi: cVi,
+                textJa: cJa
+              };
+            })
           };
         });
       } catch (e) { console.error(e); }
@@ -105,7 +113,6 @@ function MainApp({ user, onLogout }) {
     i18n.changeLanguage(currentLang.startsWith('vi') ? 'ja' : 'vi');
   };
 
-  // Cải tiến logic hiển thị: Nếu ở tiếng Nhật ưu tiên Ja, nếu ở tiếng Việt ưu tiên Vi
   const getProjName = (p) => {
     if (isJa) return p.nameJa || p.nameVi || '';
     return p.nameVi || p.nameJa || '';
