@@ -27,6 +27,7 @@ model Project {
 model Task {
   id          String   @id @default(uuid())
   title       String
+  titleJa     String?  @default("")
   description String?  @default("")
   assignee    String?  @default("Chưa phân công")
   priority    String   @default("Trung bình")
