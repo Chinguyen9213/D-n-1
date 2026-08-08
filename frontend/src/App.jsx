@@ -2,48 +2,75 @@ import React, { useState, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLanguageShortcut } from './useLanguageShortcut';
 
+// Hàm helper tự động dịch bằng MyMemory Translate API miễn phí
+async function autoTranslateText(text, targetLang) {
+  if (!text || !text.trim()) return text;
+  try {
+    const langPair = targetLang === 'ja' ? 'vi|ja' : 'ja|vi';
+    const res = await fetch(
+      `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${langPair}`
+    );
+    const data = await res.json();
+    if (data && data.responseData && data.responseData.translatedText) {
+      return data.responseData.translatedText;
+    }
+  } catch (error) {
+    console.error('Lỗi tự động dịch:', error);
+  }
+  return text; // Trả về text gốc nếu lỗi mạng
+}
+
 function MainApp() {
   const { t, i18n } = useTranslation();
   useLanguageShortcut();
 
+  const isJa = i18n.language && i18n.language.startsWith('ja');
+
+  // Mảng dự án mẫu
   const [projects, setProjects] = useState([
-    { id: 'p1', name: 'Khai Trương Cửa Hàng' },
-    { id: 'p2', name: 'Marketing & Quảng Cáo' }
+    { id: 'p1', nameVi: 'Khai Trương Cửa Hàng', nameJa: '店舗オープン' },
+    { id: 'p2', nameVi: 'Marketing & Quảng Cáo', nameJa: 'マーケティング＆広告' }
   ]);
+
   const [currentView, setCurrentView] = useState('overview');
   const [newProjectName, setNewProjectName] = useState('');
   const [checklistFilter, setChecklistFilter] = useState('all');
+  const [isTranslating, setIsTranslating] = useState(false);
 
+  // Mảng Task mẫu
   const [tasks, setTasks] = useState([
     {
       id: 1,
       projectId: 'p1',
-      title: 'Thuê mặt bằng & Thi công',
+      titleVi: 'Thuê mặt bằng & Thi công',
+      titleJa: '物件契約＆施工',
       status: 'Đang Làm',
       checklists: [
-        { id: 101, text: 'Ký hợp đồng thuê', completed: true },
-        { id: 102, text: 'Thiết kế biển bảng', completed: false },
-        { id: 103, text: 'Sơn sửa lại cửa hàng', completed: false }
+        { id: 101, textVi: 'Ký hợp đồng thuê', textJa: '賃貸契約締結', completed: true },
+        { id: 102, textVi: 'Thiết kế biển bảng', textJa: '看板デザイン', completed: false },
+        { id: 103, textVi: 'Sơn sửa lại cửa hàng', textJa: '店舗内装・塗装', completed: false }
       ]
     },
     {
       id: 2,
       projectId: 'p1',
-      title: 'Tuyển dụng nhân sự',
+      titleVi: 'Tuyển dụng nhân sự',
+      titleJa: '採用・人材募集',
       status: 'Cần Làm',
       checklists: [
-        { id: 201, text: 'Đăng tin tuyển dụng', completed: true },
-        { id: 202, text: 'Phỏng vấn thu ngân', completed: false }
+        { id: 201, textVi: 'Đăng tin tuyển dụng', textJa: '求人情報掲載', completed: true },
+        { id: 202, textVi: 'Phỏng vấn thu ngân', textJa: 'レジ担当面接', completed: false }
       ]
     },
     {
       id: 3,
       projectId: 'p2',
-      title: 'Chạy quảng cáo Facebook',
+      titleVi: 'Chạy quảng cáo Facebook',
+      titleJa: 'Facebook広告運用',
       status: 'Đang Làm',
       checklists: [
-        { id: 301, text: 'Tạo Fanpage', completed: true },
-        { id: 302, text: 'Nạp ngân sách QC', completed: false }
+        { id: 301, textVi: 'Tạo Fanpage', textJa: 'Fanpage作成', completed: true },
+        { id: 302, textVi: 'Nạp ngân sách QC', textJa: '広告予算チャージ', completed: false }
       ]
     }
   ]);
@@ -57,27 +84,91 @@ function MainApp() {
     i18n.changeLanguage(nextLang);
   };
 
-  const handleAddProject = (e) => {
+  const getProjName = (p) => isJa ? (p.nameJa || p.nameVi) : (p.nameVi || p.nameJa);
+  const getTaskTitle = (task) => isJa ? (task.titleJa || task.titleVi) : (task.titleVi || task.titleJa);
+  const getChecklistText = (item) => isJa ? (item.textJa || item.textVi) : (item.textVi || item.textJa);
+
+  // XỬ LÝ THÊM DỰ ÁN MỚI -> TỰ ĐỘNG DỊCH
+  const handleAddProject = async (e) => {
     e.preventDefault();
     if (!newProjectName.trim()) return;
-    const newProj = { id: Date.now().toString(), name: newProjectName };
-    setProjects([...projects, newProj]);
+
+    setIsTranslating(true);
+    const textInput = newProjectName.trim();
+    let nameVi = textInput;
+    let nameJa = textInput;
+
+    if (isJa) {
+      nameVi = await autoTranslateText(textInput, 'vi');
+    } else {
+      nameJa = await autoTranslateText(textInput, 'ja');
+    }
+
+    const newProj = { id: Date.now().toString(), nameVi, nameJa };
+    setProjects(prev => [...prev, newProj]);
     setCurrentView(newProj.id);
     setNewProjectName('');
+    setIsTranslating(false);
   };
 
-  const handleAddTask = (e) => {
+  // XỬ LÝ THÊM TASK MỚI -> TỰ ĐỘNG DỊCH
+  const handleAddTask = async (e) => {
     e.preventDefault();
     if (!newTaskTitle.trim()) return;
+
+    setIsTranslating(true);
+    const textInput = newTaskTitle.trim();
+    let titleVi = textInput;
+    let titleJa = textInput;
+
+    if (isJa) {
+      titleVi = await autoTranslateText(textInput, 'vi');
+    } else {
+      titleJa = await autoTranslateText(textInput, 'ja');
+    }
+
     const newTask = {
       id: Date.now(),
       projectId: currentView,
-      title: newTaskTitle,
+      titleVi,
+      titleJa,
       status: 'Cần Làm',
       checklists: []
     };
-    setTasks([...tasks, newTask]);
+    setTasks(prev => [...prev, newTask]);
     setNewTaskTitle('');
+    setIsTranslating(false);
+  };
+
+  // XỬ LÝ THÊM CHECKLIST MỚI -> TỰ ĐỘNG DỊCH
+  const handleAddChecklist = async (taskId, e) => {
+    e.preventDefault();
+    const text = newChecklistText[taskId];
+    if (!text || !text.trim()) return;
+
+    setIsTranslating(true);
+    const textInput = text.trim();
+    let textVi = textInput;
+    let textJa = textInput;
+
+    if (isJa) {
+      textVi = await autoTranslateText(textInput, 'vi');
+    } else {
+      textJa = await autoTranslateText(textInput, 'ja');
+    }
+
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        return {
+          ...t,
+          checklists: [...t.checklists, { id: Date.now(), textVi, textJa, completed: false }]
+        };
+      }
+      return t;
+    }));
+
+    setNewChecklistText(prev => ({ ...prev, [taskId]: '' }));
+    setIsTranslating(false);
   };
 
   const handleStatusChange = (taskId, newStatus) => {
@@ -86,24 +177,6 @@ function MainApp() {
 
   const handleDeleteTask = (taskId) => {
     setTasks(tasks.filter(t => t.id !== taskId));
-  };
-
-  const handleAddChecklist = (taskId, e) => {
-    e.preventDefault();
-    const text = newChecklistText[taskId];
-    if (!text || !text.trim()) return;
-
-    setTasks(tasks.map(t => {
-      if (t.id === taskId) {
-        return {
-          ...t,
-          checklists: [...t.checklists, { id: Date.now(), text: text.trim(), completed: false }]
-        };
-      }
-      return t;
-    }));
-
-    setNewChecklistText({ ...newChecklistText, [taskId]: '' });
   };
 
   const toggleChecklist = (taskId, itemId) => {
@@ -137,8 +210,8 @@ function MainApp() {
     return task.checklists.map(c => ({
       ...c,
       taskId: task.id,
-      taskTitle: task.title,
-      projectName: proj ? proj.name : 'Chưa phân loại'
+      taskTitle: getTaskTitle(task),
+      projectName: proj ? getProjName(proj) : 'Chưa phân loại'
     }));
   });
 
@@ -153,7 +226,14 @@ function MainApp() {
   const overallProgress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-gray-100 flex flex-col font-sans relative">
+      {/* Indicator khi đang tự động dịch */}
+      {isTranslating && (
+        <div className="fixed top-4 right-4 z-50 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg text-xs font-semibold flex items-center gap-2 animate-bounce">
+          ⚡ {isJa ? '自動翻訳中...' : 'Đang tự động dịch...'}
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-6 py-4 shadow-sm flex justify-between items-center">
         <div>
@@ -168,7 +248,7 @@ function MainApp() {
             onClick={toggleLanguage}
             className="px-3 py-1.5 text-sm font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50 shadow-sm transition-colors"
           >
-            🌐 {i18n.language && i18n.language.startsWith('ja') ? '🇯🇵 日本語' : '🇻🇳 Tiếng Việt'}
+            🌐 {isJa ? '🇯🇵 日本語' : '🇻🇳 Tiếng Việt'}
           </button>
         </div>
       </header>
@@ -202,7 +282,7 @@ function MainApp() {
                     : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
-                <span className="truncate">📁 {p.name}</span>
+                <span className="truncate">📁 {getProjName(p)}</span>
                 <span className="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">
                   {tasks.filter(t => t.projectId === p.id).length}
                 </span>
@@ -218,7 +298,7 @@ function MainApp() {
               onChange={(e) => setNewProjectName(e.target.value)}
               className="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-500"
             />
-            <button type="submit" className="bg-blue-600 text-white text-sm px-3 py-1.5 rounded-lg hover:bg-blue-700 font-medium">
+            <button type="submit" disabled={isTranslating} className="bg-blue-600 text-white text-sm px-3 py-1.5 rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50">
               {t('add_btn')}
             </button>
           </form>
@@ -250,7 +330,7 @@ function MainApp() {
                 </div>
               </div>
 
-              {/* BẢNG TỔNG HỢP CHECKLIST TOÀN BỘ CÔNG VIỆC */}
+              {/* BẢNG TỔNG HỢP CHECKLIST */}
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-gray-100">
                   <div>
@@ -260,7 +340,6 @@ function MainApp() {
                     <p className="text-xs text-gray-500">{t('checklist_table_sub')}</p>
                   </div>
 
-                  {/* Bộ lọc trạng thái */}
                   <div className="flex gap-2">
                     <button
                       onClick={() => setChecklistFilter('all')}
@@ -289,7 +368,6 @@ function MainApp() {
                   </div>
                 </div>
 
-                {/* Danh sách Table Checklist */}
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
@@ -313,7 +391,7 @@ function MainApp() {
                             />
                           </td>
                           <td className={`p-3 font-medium ${item.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}>
-                            {item.text}
+                            {getChecklistText(item)}
                           </td>
                           <td className="p-3 text-gray-600 font-medium">{item.taskTitle}</td>
                           <td className="p-3">
@@ -344,7 +422,7 @@ function MainApp() {
                 </div>
               </div>
 
-              {/* Danh sách Thư Mục Chi Tiết bên dưới */}
+              {/* Danh sách Thư Mục */}
               <div className="space-y-4">
                 <h3 className="text-base font-bold text-gray-800">📁 {t('project_list_heading')}</h3>
                 {projects.map(project => {
@@ -360,7 +438,7 @@ function MainApp() {
                           onClick={() => setCurrentView(project.id)}
                           className="font-bold text-blue-600 hover:underline cursor-pointer"
                         >
-                          📁 {project.name}
+                          📁 {getProjName(project)}
                         </h4>
                         <p className="text-xs text-gray-500 mt-1">
                           {t('total_tasks_label')}: {pTotal} | {t('completed_label')}: {pDone}
@@ -381,11 +459,11 @@ function MainApp() {
               </div>
             </div>
           ) : (
-            /* VIEW CHI TIẾT DỰ ÁN (KANBAN BOARD) */
+            /* VIEW DỰ ÁN CHI TIẾT */
             <div>
               <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
                 <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                  📂 {projects.find(p => p.id === currentView)?.name || 'Dự Án'}
+                  📂 {projects.find(p => p.id === currentView) ? getProjName(projects.find(p => p.id === currentView)) : 'Dự Án'}
                 </h2>
 
                 <form onSubmit={handleAddTask} className="flex gap-2">
@@ -396,7 +474,7 @@ function MainApp() {
                     onChange={(e) => setNewTaskTitle(e.target.value)}
                     className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 w-64 shadow-sm"
                   />
-                  <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow-sm">
+                  <button type="submit" disabled={isTranslating} className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow-sm disabled:opacity-50">
                     {t('add_task_btn')}
                   </button>
                 </form>
@@ -427,7 +505,7 @@ function MainApp() {
                         return (
                           <div key={task.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
                             <div className="flex justify-between items-start">
-                              <h3 className="font-semibold text-gray-800 text-sm">{task.title}</h3>
+                              <h3 className="font-semibold text-gray-800 text-sm">{getTaskTitle(task)}</h3>
                               <button onClick={() => handleDeleteTask(task.id)} className="text-xs text-red-400 hover:text-red-600">{t('delete_btn')}</button>
                             </div>
 
@@ -457,7 +535,7 @@ function MainApp() {
                                       className="rounded text-blue-600 focus:ring-0 w-3.5 h-3.5"
                                     />
                                     <span className={item.completed ? 'line-through text-gray-400' : 'text-gray-700'}>
-                                      {item.text}
+                                      {getChecklistText(item)}
                                     </span>
                                   </label>
                                   <button 
@@ -478,7 +556,7 @@ function MainApp() {
                                 onChange={(e) => setNewChecklistText({ ...newChecklistText, [task.id]: e.target.value })}
                                 className="text-xs border border-gray-200 rounded px-2 py-1 flex-1 focus:outline-none focus:border-blue-400"
                               />
-                              <button type="submit" className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-1 rounded font-medium">
+                              <button type="submit" disabled={isTranslating} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-1 rounded font-medium disabled:opacity-50">
                                 {t('add_btn')}
                               </button>
                             </form>
