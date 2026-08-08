@@ -2,7 +2,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLanguageShortcut } from './useLanguageShortcut';
 
-// Helper dịch có Timeout (không lo đơ app nếu API dịch lỗi)
+// Helper dịch có Timeout
 async function autoTranslateText(text, targetLang) {
   if (!text || !text.trim()) return text;
   
@@ -35,7 +35,7 @@ function MainApp({ user, onLogout }) {
 
   const isJa = i18n.language && i18n.language.startsWith('ja');
 
-  // 1. ĐỌC DỮ LIỆU TỪ LOCALSTORAGE KHI MỞ TRANG
+  // 1. ĐỌC DỮ LIỆU TỪ LOCALSTORAGE
   const [projects, setProjects] = useState(() => {
     const saved = localStorage.getItem('kanban_projects');
     if (saved) {
@@ -59,27 +59,16 @@ function MainApp({ user, onLogout }) {
         titleVi: 'Thuê mặt bằng & Thi công',
         titleJa: '物件契約＆施工',
         status: 'Đang Làm',
+        assignee: 'Chinguyen',
+        dueDate: '2026-06-30',
         checklists: [
           { id: 101, textVi: 'Ký hợp đồng thuê', textJa: '賃貸契約締結', completed: true },
-          { id: 102, textVi: 'Thiết kế biển bảng', textJa: '看板デザイン', completed: true },
-          { id: 103, textVi: 'Sơn sửa lại cửa hàng', textJa: '店舗内装・塗装', completed: true }
-        ]
-      },
-      {
-        id: 2,
-        projectId: 'p1',
-        titleVi: 'Tuyển dụng nhân sự',
-        titleJa: '採用・人材募集',
-        status: 'Cần Làm',
-        checklists: [
-          { id: 201, textVi: 'Đăng tin tuyển dụng', textJa: '求人情報掲載', completed: true },
-          { id: 202, textVi: 'Phỏng vấn thu ngân', textJa: 'レジ担当面接', completed: false }
+          { id: 102, textVi: 'Thiết kế biển bảng', textJa: '看板デザイン', completed: true }
         ]
       }
     ];
   });
 
-  // 2. TỰ ĐỘNG LƯU VÀO LOCALSTORAGE
   useEffect(() => {
     localStorage.setItem('kanban_projects', JSON.stringify(projects));
   }, [projects]);
@@ -92,7 +81,12 @@ function MainApp({ user, onLogout }) {
   const [newProjectName, setNewProjectName] = useState('');
   const [checklistFilter, setChecklistFilter] = useState('all');
   const [isTranslating, setIsTranslating] = useState(false);
+
+  // State form tạo task mới (có thêm người phụ trách & thời hạn)
   const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskAssignee, setNewTaskAssignee] = useState('');
+  const [newTaskDueDate, setNewTaskDueDate] = useState('');
+
   const [newChecklistText, setNewChecklistText] = useState({});
 
   const toggleLanguage = () => {
@@ -120,9 +114,7 @@ function MainApp({ user, onLogout }) {
     if (window.confirm(confirmMsg)) {
       setProjects(prev => prev.filter(p => p.id !== projectId));
       setTasks(prev => prev.filter(t => t.projectId !== projectId));
-      if (currentView === projectId) {
-        setCurrentView('overview');
-      }
+      if (currentView === projectId) setCurrentView('overview');
     }
   };
 
@@ -172,10 +164,14 @@ function MainApp({ user, onLogout }) {
         titleVi,
         titleJa,
         status: 'Cần Làm',
+        assignee: newTaskAssignee.trim() || user,
+        dueDate: newTaskDueDate || '',
         checklists: []
       };
       setTasks(prev => [...prev, newTask]);
       setNewTaskTitle('');
+      setNewTaskAssignee('');
+      setNewTaskDueDate('');
       setIsTranslating(false);
     }
   };
@@ -342,10 +338,6 @@ function MainApp({ user, onLogout }) {
                 </div>
               </div>
             ))}
-
-            {projects.length === 0 && (
-              <p className="text-xs text-gray-400 italic p-2 text-center">{isJa ? 'プロジェクトがありません' : 'Chưa có dự án nào'}</p>
-            )}
           </div>
 
           <form onSubmit={handleAddProject} className="mt-4 pt-4 border-t border-gray-200 flex gap-2">
@@ -368,7 +360,6 @@ function MainApp({ user, onLogout }) {
             <div className="space-y-6">
               <h2 className="text-xl font-bold text-gray-800">📊 {isJa ? '全体レポート概要' : 'Báo Cáo Tổng Quan'}</h2>
 
-              {/* Cards Thống kê */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
                   <p className="text-xs text-gray-500 font-medium">{isJa ? '総プロジェクト数' : 'Tổng số dự án'}</p>
@@ -464,92 +455,63 @@ function MainApp({ user, onLogout }) {
                           </td>
                         </tr>
                       ))}
-
-                      {filteredChecklist.length === 0 && (
-                        <tr>
-                          <td colSpan="5" className="p-6 text-center text-gray-400 italic">
-                            {isJa ? 'チェックリストはありません' : 'Không có mục checklist nào'}
-                          </td>
-                        </tr>
-                      )}
                     </tbody>
                   </table>
                 </div>
-              </div>
-
-              {/* Danh sách Thư mục Overview */}
-              <div className="space-y-4">
-                <h3 className="text-base font-bold text-gray-800">📁 {isJa ? 'プロジェクト詳細' : 'Danh sách Dự Án Chi Tiết'}</h3>
-                {projects.map(project => {
-                  const projectTasks = tasks.filter(t => t.projectId === project.id);
-                  const pTotal = projectTasks.length;
-                  const pDone = projectTasks.filter(t => t.status === 'Đã Xong').length;
-                  const pPercent = pTotal > 0 ? Math.round((pDone / pTotal) * 100) : 0;
-
-                  return (
-                    <div key={project.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex justify-between items-center">
-                      <div>
-                        <h4 
-                          onClick={() => setCurrentView(project.id)}
-                          className="font-bold text-blue-600 hover:underline cursor-pointer"
-                        >
-                          📁 {getProjName(project)}
-                        </h4>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {isJa ? 'タスク数' : 'Tổng task'}: {pTotal} | {isJa ? '完了' : 'Đã xong'}: {pDone}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs font-semibold text-gray-600">{pPercent}%</span>
-                        <button 
-                          onClick={() => setCurrentView(project.id)}
-                          className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg font-medium"
-                        >
-                          {isJa ? '開く' : 'Mở Kanban'}
-                        </button>
-                        <button 
-                          onClick={(e) => handleDeleteProject(project.id, e)}
-                          className="text-xs text-red-500 hover:bg-red-50 px-2.5 py-1.5 rounded-lg font-medium border border-red-200"
-                        >
-                          🗑️ {isJa ? '削除' : 'Xóa'}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
               </div>
             </div>
           ) : (
             /* VIEW DỰ ÁN CHI TIẾT (KANBAN) */
             <div>
-              <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4 border-b border-gray-200 pb-4">
-                <div className="flex items-center gap-4">
-                  <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                    📁 {currentProjectObj ? getProjName(currentProjectObj) : (isJa ? 'プロジェクト' : 'Dự Án')}
-                  </h2>
-
-                  {currentProjectObj && (
-                    <button
-                      onClick={(e) => handleDeleteProject(currentProjectObj.id, e)}
-                      className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1 transition-colors shadow-sm cursor-pointer"
-                    >
-                      🗑️ {isJa ? 'このプロジェクトを削除' : 'Xóa dự án này'}
-                    </button>
-                  )}
-                </div>
-
-                <form onSubmit={handleAddTask} className="flex gap-2">
+              {/* Form tạo task mới tích hợp Người phụ trách & Thời hạn */}
+              <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-6 space-y-3">
+                <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                  ✨ {isJa ? '新しいタスクを追加' : 'Thêm Công Việc Mới'}
+                </h3>
+                <form onSubmit={handleAddTask} className="grid grid-cols-1 md:grid-cols-4 gap-3">
                   <input
                     type="text"
-                    placeholder={isJa ? '新しいタスクを入力...' : 'Nhập tên công việc mới...'}
+                    placeholder={isJa ? 'タスク名を入力...' : 'Nhập tên công việc...'}
                     value={newTaskTitle}
                     onChange={(e) => setNewTaskTitle(e.target.value)}
-                    className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 w-64 shadow-sm"
+                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                    required
                   />
-                  <button type="submit" disabled={isTranslating} className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow-sm disabled:opacity-50">
-                    {isJa ? '+ 新しいタスクを作成' : '+ Tạo Task Mới'}
+                  <input
+                    type="text"
+                    placeholder={isJa ? '担当者 (例: チン)' : 'Người phụ trách (VD: Chi)'}
+                    value={newTaskAssignee}
+                    onChange={(e) => setNewTaskAssignee(e.target.value)}
+                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                  />
+                  <input
+                    type="date"
+                    value={newTaskDueDate}
+                    onChange={(e) => setNewTaskDueDate(e.target.value)}
+                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 text-gray-600"
+                  />
+                  <button 
+                    type="submit" 
+                    disabled={isTranslating} 
+                    className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg shadow-sm disabled:opacity-50 transition-colors"
+                  >
+                    {isJa ? '＋ タスクを作成' : '＋ Tạo Task'}
                   </button>
                 </form>
+              </div>
+
+              <div className="flex items-center justify-between mb-6 border-b border-gray-200 pb-4">
+                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                  📁 {currentProjectObj ? getProjName(currentProjectObj) : (isJa ? 'プロジェクト' : 'Dự Án')}
+                </h2>
+                {currentProjectObj && (
+                  <button
+                    onClick={(e) => handleDeleteProject(currentProjectObj.id, e)}
+                    className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1 transition-colors shadow-sm cursor-pointer"
+                  >
+                    🗑️ {isJa ? 'このプロジェクトを削除' : 'Xóa dự án này'}
+                  </button>
+                )}
               </div>
 
               {/* BẢNG KANBAN 3 CỘT */}
@@ -584,6 +546,20 @@ function MainApp({ user, onLogout }) {
                               <button onClick={() => handleDeleteTask(task.id)} className="text-xs text-red-400 hover:text-red-600">
                                 {isJa ? '削除' : 'Xóa'}
                               </button>
+                            </div>
+
+                            {/* HIỂN THỊ NGƯỜI PHỤ TRÁCH & THỜI GIAN THỰC HIỆN */}
+                            <div className="flex flex-wrap gap-2 text-xs pt-0.5">
+                              {task.assignee && (
+                                <span className="bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-md font-medium flex items-center gap-1">
+                                  👤 {task.assignee}
+                                </span>
+                              )}
+                              {task.dueDate && (
+                                <span className="bg-orange-50 text-orange-700 border border-orange-200 px-2 py-0.5 rounded-md font-medium flex items-center gap-1">
+                                  ⏳ {task.dueDate}
+                                </span>
+                              )}
                             </div>
 
                             {totalItems > 0 && (
@@ -668,7 +644,7 @@ function MainApp({ user, onLogout }) {
 }
 
 // -------------------------------------------------------------
-// MAIN COMPONENT ROOT (Vào thẳng ứng dụng luôn, không cần Login)
+// MAIN COMPONENT ROOT
 // -------------------------------------------------------------
 export default function App() {
   const [user, setUser] = useState("Chinguyen");
