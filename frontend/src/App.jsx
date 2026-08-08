@@ -51,11 +51,23 @@ function MainApp({ user, onLogout }) {
         titleVi: 'Thuê mặt bằng & Thi công',
         titleJa: '物件契約＆施工',
         status: 'Đang Làm',
-        assignee: 'Chinguyen',
-        dueDate: '2026-06-30',
+        assignee: 'Chi',
+        dueDate: '2026-08-10',
         checklists: [
           { id: 101, textVi: 'Ký hợp đồng thuê', textJa: '賃貸契約締結', completed: true },
-          { id: 102, textVi: 'Thiết kế biển bảng', textJa: '看板デザイン', completed: true }
+          { id: 102, textVi: 'Thiết kế biển bảng', textJa: '看板デザイン', completed: false }
+        ]
+      },
+      {
+        id: 2,
+        projectId: 'p1',
+        titleVi: 'Xây dựng quy trình SOP',
+        titleJa: 'SOPプロセスの構築',
+        status: 'Cần Làm',
+        assignee: 'Chi',
+        dueDate: '2026-08-15',
+        checklists: [
+          { id: 201, textVi: 'Viết quy định phục vụ', textJa: '接客ルールの作成', completed: false }
         ]
       }
     ];
@@ -79,7 +91,6 @@ function MainApp({ user, onLogout }) {
     i18n.changeLanguage(currentLang.startsWith('vi') ? 'ja' : 'vi');
   };
 
-  // Hàm hiển thị an toàn (nếu thiếu bản dịch sẽ tự lấy chữ gốc)
   const getProjName = (p) => isJa ? (p.nameJa || p.nameVi) : (p.nameVi || p.nameJa);
   const getTaskTitle = (task) => isJa ? (task.titleJa || task.titleVi) : (task.titleVi || task.titleJa);
   const getChecklistText = (item) => isJa ? (item.textJa || item.textVi) : (item.textVi || item.textJa);
@@ -444,7 +455,7 @@ function MainApp({ user, onLogout }) {
 }
 
 export default function App() {
-  const [user] = useState("Chinguyen");
+  const [user] = useState("Chi");
   const handleLogout = () => {};
   return <MainApp user={user} onLogout={handleLogout} />;
 }
