@@ -1,15 +1,46 @@
+datasource db {
+  provider = "postgresql" // Hoặc "sqlite", "mysql" tùy cấu hình database của bạn
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Project {
+  id      String   @id @unique
+  nameVi  String
+  nameJa  String
+  tasks   Task[]
+}
+
+model Checklist {
+  id        Int      @id
+  taskId    Int
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  textVi    String?
+  textJa    String?
+  completed Boolean  @default(false)
+}
+
+model Attachment {
+  id     String   @id
+  taskId Int
+  task   Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  name   String
+  url    String
+}
+
 model Task {
-  id          String   @id @default(uuid()) // Hoặc kiểu Int tùy cấu hình hiện tại của bạn
-  title       String
-  description String?
-  status      String   @default("todo")
-  assignee    String?
-  priority    String   @default("medium")
-  dueDate     DateTime?
-  
-  // 👉 Thêm trường này để lưu danh sách file đính kèm dưới dạng JSON array
-  attachments Json?    @default("[]") 
-  
+  id          Int          @id @unique
   projectId   String
-  // Các quan hệ khác (nếu có)
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  titleVi     String
+  titleJa     String
+  status      String       @default("Cần Làm")
+  priority    String       @default("MEDIUM")
+  assignee    String       @default("")
+  dueDate     String       @default("")
+  checklists  Checklist[]
+  attachments Attachment[]
 }
