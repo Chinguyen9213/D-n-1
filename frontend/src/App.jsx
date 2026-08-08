@@ -226,8 +226,6 @@ function MainApp() {
     }));
   };
 
-  const columns = ['Cần Làm', 'Đang Làm', 'Đã Xong'];
-
   const allChecklistItems = tasks.flatMap(task => {
     const proj = projects.find(p => p.id === task.projectId);
     return task.checklists.map(c => ({
@@ -373,7 +371,7 @@ function MainApp() {
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-gray-100">
                   <div>
                     <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                      📋 {isJa ? '全チェックリスト一覧' : 'Bảng Tổng Hop Checklist'}
+                      📋 {isJa ? '全チェックリスト一覧' : 'Bảng Tổng Hợp Checklist'}
                     </h3>
                   </div>
 
@@ -502,21 +500,20 @@ function MainApp() {
               </div>
             </div>
           ) : (
-            /* VIEW DỰ ÁN CHI TIẾT (Trang bạn đang mở) */
+            /* VIEW DỰ ÁN CHI TIẾT (KANBAN) */
             <div>
               <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4 border-b border-gray-200 pb-4">
                 <div className="flex items-center gap-4">
                   <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                    📁 {currentProjectObj ? getProjName(currentProjectObj) : 'Dự Án'}
+                    📁 {currentProjectObj ? getProjName(currentProjectObj) : (isJa ? 'プロジェクト' : 'Dự Án')}
                   </h2>
 
-                  {/* NÚT XÓA DỰ ÁN DỊCH CHUẨN */}
                   {currentProjectObj && (
                     <button
                       onClick={(e) => handleDeleteProject(currentProjectObj.id, e)}
                       className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1 transition-colors shadow-sm cursor-pointer"
                     >
-                      🗑️ {isJa ? 'プロジェクトを削除' : 'Xóa dự án này'}
+                      🗑️ {isJa ? 'このプロジェクトを削除' : 'Xóa dự án này'}
                     </button>
                   )}
                 </div>
@@ -530,32 +527,25 @@ function MainApp() {
                     className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 w-64 shadow-sm"
                   />
                   <button type="submit" disabled={isTranslating} className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow-sm disabled:opacity-50">
-                    {isJa ? '+ タスク作成' : '+ Tạo Task Mới'}
+                    {isJa ? '+ 新しいタスクを作成' : '+ Tạo Task Mới'}
                   </button>
                 </form>
               </div>
 
-              {/* BẢNG KANBAN DỊCH TIẾNG NHẬT TẤT CẢ TỪ BỊ DƯ */}
+              {/* BẢNG KANBAN 3 CỘT */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 align-top">
-                {columns.map(status => {
-                  const statusTasks = tasks.filter(t => t.projectId === currentView && t.status === status);
-                  
-                  // Label Tiêu Đề Cột Dịch
-                  let columnLabel = status;
-                  if (isJa) {
-                    if (status === 'Cần Làm') columnLabel = '未着手';
-                    if (status === 'Đang Làm') columnLabel = '進行中';
-                    if (status === 'Đã Xong') columnLabel = '完了';
-                  }
+                {[
+                  { id: 'Cần Làm', labelVi: 'Cần Làm', labelJa: '未着手', icon: '🟡' },
+                  { id: 'Đang Làm', labelVi: 'Đang Làm', labelJa: '進行中', icon: '🔵' },
+                  { id: 'Đã Xong', labelVi: 'Đã Xong', labelJa: '完了', icon: '🟢' }
+                ].map(col => {
+                  const statusTasks = tasks.filter(t => t.projectId === currentView && t.status === col.id);
 
                   return (
-                    <div key={status} className="bg-gray-50 rounded-xl p-4 border border-gray-200 flex flex-col gap-3">
+                    <div key={col.id} className="bg-gray-50 rounded-xl p-4 border border-gray-200 flex flex-col gap-3">
                       <div className="flex justify-between items-center pb-2 border-b border-gray-200">
                         <span className="font-semibold text-gray-700 text-sm flex items-center gap-2">
-                          {status === 'Cần Làm' && '🟡'}
-                          {status === 'Đang Làm' && '🔵'}
-                          {status === 'Đã Xong' && '🟢'}
-                          {columnLabel}
+                          {col.icon} {isJa ? col.labelJa : col.labelVi}
                         </span>
                         <span className="bg-white text-gray-600 text-xs px-2 py-0.5 rounded-full font-medium border border-gray-200 shadow-sm">
                           {statusTasks.length}
@@ -579,7 +569,7 @@ function MainApp() {
                             {totalItems > 0 && (
                               <div className="space-y-1">
                                 <div className="flex justify-between text-xs text-gray-500">
-                                  <span>{isJa ? '進捗状況' : 'Tiến độ Checklist'}</span>
+                                  <span>{isJa ? 'チェックリスト進捗' : 'Tiến độ Checklist'}</span>
                                   <span>{completedItems}/{totalItems} ({progressPercent}%)</span>
                                 </div>
                                 <div className="w-full bg-gray-200 h-1.5 rounded-full overflow-hidden">
