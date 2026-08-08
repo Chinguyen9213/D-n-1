@@ -30,11 +30,9 @@ function MainApp({ user, onLogout }) {
       try {
         const parsed = JSON.parse(saved);
         return parsed.map(t => {
-          // Chuẩn hóa và tự động sửa các task cũ bị trùng hoặc thiếu dữ liệu dịch
           let tVi = t.titleVi || t.title || 'Công việc chưa đặt tên';
           let tJa = t.titleJa || t.title || tVi;
           
-          // Nếu lỡ bị lưu chung một chuỗi giống hệt nhau (ví dụ: "Xây dựng quy trình SOP (xây dựng quy trình SOP)")
           if (tVi.includes('(') && tVi.endsWith(')')) {
             tVi = tVi.split('(')[0].trim();
           }
@@ -90,11 +88,9 @@ function MainApp({ user, onLogout }) {
   const [newChecklistTextVi, setNewChecklistTextVi] = useState({});
   const [newChecklistTextJa, setNewChecklistTextJa] = useState({});
 
-  // State nhập tài liệu đính kèm (URL)
   const [attNameInputs, setAttNameInputs] = useState({});
   const [attUrlInputs, setAttUrlInputs] = useState({});
 
-  // State chỉnh sửa tên Task
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editTitleVi, setEditTitleVi] = useState('');
   const [editTitleJa, setEditTitleJa] = useState('');
@@ -109,9 +105,21 @@ function MainApp({ user, onLogout }) {
     i18n.changeLanguage(currentLang.startsWith('vi') ? 'ja' : 'vi');
   };
 
-  const getProjName = (p) => isJa ? (p.nameJa || p.nameVi) : (p.nameVi || p.nameJa);
-  const getTaskTitle = (task) => isJa ? (task.titleJa || task.titleVi) : (task.titleVi || task.titleJa);
-  const getChecklistText = (item) => isJa ? (item.textJa || item.textVi) : (item.textVi || item.textJa);
+  // Cải tiến logic hiển thị: Nếu ở tiếng Nhật ưu tiên Ja, nếu ở tiếng Việt ưu tiên Vi
+  const getProjName = (p) => {
+    if (isJa) return p.nameJa || p.nameVi || '';
+    return p.nameVi || p.nameJa || '';
+  };
+
+  const getTaskTitle = (task) => {
+    if (isJa) return task.titleJa || task.titleVi || '';
+    return task.titleVi || task.titleJa || '';
+  };
+
+  const getChecklistText = (item) => {
+    if (isJa) return item.textJa || item.textVi || '';
+    return item.textVi || item.textJa || '';
+  };
 
   const handleDeleteProject = (projectId, e) => {
     if (e) { e.stopPropagation(); e.preventDefault(); }
@@ -177,7 +185,6 @@ function MainApp({ user, onLogout }) {
     setEditingTaskId(null);
   };
 
-  // Thêm tài liệu bằng URL
   const handleAddAttachmentUrl = (taskId) => {
     const name = attNameInputs[taskId];
     const url = attUrlInputs[taskId];
@@ -198,7 +205,6 @@ function MainApp({ user, onLogout }) {
     setAttUrlInputs(prev => ({ ...prev, [taskId]: '' }));
   };
 
-  // Tải file trực tiếp từ máy tính lên
   const handleFileUpload = (taskId, e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -679,7 +685,6 @@ function MainApp({ user, onLogout }) {
                                 </div>
                               </form>
 
-                              {/* QUẢN LÝ TÀI LIỆU SONG SONG: LINK & TẢI FILE TỪ MÁY */}
                               <div className="pt-2 border-t border-gray-100 space-y-2">
                                 <div className="flex items-center justify-between">
                                   <p className="text-[11px] font-bold text-gray-600">📎 {isJa ? '添付資料' : 'Tài liệu đính kèm'}</p>
@@ -711,7 +716,6 @@ function MainApp({ user, onLogout }) {
                                   <p className="text-[10px] text-gray-400 italic">{isJa ? '資料なし' : 'Chưa có file hay link nào'}</p>
                                 )}
 
-                                {/* Form dán link URL nhanh */}
                                 <div className="space-y-1 pt-1 border-t border-dashed border-gray-200">
                                   <input 
                                     type="text" 
