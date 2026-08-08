@@ -30,7 +30,7 @@ async function autoTranslateText(text, targetLang) {
 }
 
 // -------------------------------------------------------------
-// FORM ĐĂNG NHẬP / ĐĂNG KÝ (Mới bổ sung)
+// FORM ĐĂNG NHẬP / ĐĂNG KÝ
 // -------------------------------------------------------------
 function AuthForm({ onLoginSuccess }) {
   const [isRegister, setIsRegister] = useState(false);
@@ -121,7 +121,7 @@ function AuthForm({ onLoginSuccess }) {
 }
 
 // -------------------------------------------------------------
-// GIAO DIỆN CHÍNH KANBAN APP (Giữ nguyên toàn bộ logic cũ)
+// GIAO DIỆN CHÍNH KANBAN APP
 // -------------------------------------------------------------
 function MainApp({ user, onLogout }) {
   const { t, i18n } = useTranslation();
@@ -719,25 +719,27 @@ function MainApp({ user, onLogout }) {
                               ))}
                             </div>
 
+                            {/* Form thêm mục con checklist hoàn chỉnh */}
                             <form onSubmit={(e) => handleAddChecklist(task.id, e)} className="flex gap-1 pt-1">
                               <input
                                 type="text"
-                                placeholder={isJa ? '+ サブ項目を追加...' : '+ Thêm mục nhỏ...'}
+                                placeholder={isJa ? '+ サブ項目を追加...' : '+ Thêm mục con...'}
                                 value={newChecklistText[task.id] || ''}
                                 onChange={(e) => setNewChecklistText({ ...newChecklistText, [task.id]: e.target.value })}
-                                className="text-xs border border-gray-200 rounded px-2 py-1 flex-1 focus:outline-none focus:border-blue-400"
+                                className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:border-blue-500"
                               />
-                              <button type="submit" disabled={isTranslating} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-1 rounded font-medium disabled:opacity-50">
+                              <button type="submit" disabled={isTranslating} className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs px-2.5 py-1.5 rounded font-medium disabled:opacity-50">
                                 {isJa ? '追加' : 'Thêm'}
                               </button>
                             </form>
 
-                            <div className="pt-2 border-t border-gray-100 flex justify-between items-center">
+                            {/* Thay đổi trạng thái Task */}
+                            <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
                               <span className="text-[11px] text-gray-400">{isJa ? 'ステータス' : 'Trạng thái'}</span>
                               <select
                                 value={task.status}
                                 onChange={(e) => handleStatusChange(task.id, e.target.value)}
-                                className="text-xs border border-gray-200 rounded px-2 py-1 bg-gray-50 text-gray-600 focus:outline-none"
+                                className="text-xs border border-gray-200 rounded px-2 py-1 bg-white focus:outline-none text-gray-700 font-medium"
                               >
                                 <option value="Cần Làm">{isJa ? '未着手' : 'Cần Làm'}</option>
                                 <option value="Đang Làm">{isJa ? '進行中' : 'Đang Làm'}</option>
@@ -747,12 +749,6 @@ function MainApp({ user, onLogout }) {
                           </div>
                         );
                       })}
-
-                      {statusTasks.length === 0 && (
-                        <div className="text-center py-6 border-2 border-dashed border-gray-200 rounded-lg text-xs text-gray-400">
-                          {isJa ? 'タスクはありません' : 'Chưa có công việc'}
-                        </div>
-                      )}
                     </div>
                   );
                 })}
@@ -766,18 +762,22 @@ function MainApp({ user, onLogout }) {
 }
 
 // -------------------------------------------------------------
-// MAIN ENTRY POINT (Điều hướng Đăng nhập / App chính)
+// MAIN COMPONENT ROOT
 // -------------------------------------------------------------
 export default function App() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('username');
     const token = localStorage.getItem('token');
-    if (savedUser && token) {
-      setUser(savedUser);
+    const username = localStorage.getItem('username');
+    if (token && username) {
+      setUser(username);
     }
   }, []);
+
+  const handleLoginSuccess = (username) => {
+    setUser(username);
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -785,13 +785,9 @@ export default function App() {
     setUser(null);
   };
 
-  return (
-    <Suspense fallback={<div className="p-6 text-center text-gray-500">Loading...</div>}>
-      {user ? (
-        <MainApp user={user} onLogout={handleLogout} />
-      ) : (
-        <AuthForm onLoginSuccess={(username) => setUser(username)} />
-      )}
-    </Suspense>
-  );
+  if (!user) {
+    return <AuthForm onLoginSuccess={handleLoginSuccess} />;
+  }
+
+  return <MainApp user={user} onLogout={handleLogout} />;
 }
