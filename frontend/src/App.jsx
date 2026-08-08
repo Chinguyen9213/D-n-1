@@ -16,10 +16,13 @@ function MainApp({ user, onLogout }) {
   const [projects, setProjects] = useState(() => {
     const saved = localStorage.getItem('kanban_projects');
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) { console.error(e); }
     }
     return [
-      { id: 'p1', nameVi: 'Khai Trương Cửa Hàng', nameJa: '店舗オープン' },
+      { id: 'p1', nameVi: 'Oishii BBQ', nameJa: 'Oishii BBQ' },
       { id: 'p2', nameVi: 'Marketing & Quảng Cáo', nameJa: 'マーケティング＆広告' }
     ];
   });
@@ -29,51 +32,32 @@ function MainApp({ user, onLogout }) {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        return parsed.map(t => {
-          let rawVi = t.titleVi || t.title || '';
-          let rawJa = t.titleJa || t.title || '';
-
-          // Làm sạch nếu lỡ bị dính ngoặc kép hoặc giá trị sai từ localStorage cũ
-          if (rawVi.includes('(') && rawVi.endsWith(')')) {
-            rawVi = rawVi.split('(')[0].trim();
-          }
-
-          const titleVi = rawVi || rawJa || 'Công việc chưa đặt tên';
-          const titleJa = rawJa || rawVi || titleVi;
-
-          return {
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map(t => ({
             ...t,
-            titleVi,
-            titleJa,
-            priority: t.priority || 'MEDIUM',
-            attachments: t.attachments || [],
-            checklists: (t.checklists || []).map(c => {
-              const cVi = c.textVi || c.text || 'Mục con';
-              const cJa = c.textJa || c.text || cVi;
-              return {
-                ...c,
-                textVi: cVi,
-                textJa: cJa
-              };
-            })
-          };
-        });
+            titleVi: t.titleVi || t.title || 'Công việc',
+            titleJa: t.titleJa || t.title || 'タスク',
+            checklists: (t.checklists || []).map(c => ({
+              ...c,
+              textVi: c.textVi || c.text || 'Mục con',
+              textJa: c.textJa || c.text || '小項目'
+            })),
+            attachments: t.attachments || []
+          }));
+        }
       } catch (e) { console.error(e); }
     }
     return [
       {
         id: 1,
         projectId: 'p1',
-        titleVi: 'Thuê mặt bằng & Thi công',
-        titleJa: '物件契約＆施工',
-        status: 'Đang Làm',
+        titleVi: 'Xây dựng quy trình SOP',
+        titleJa: 'SOPプロセスの構築',
+        status: 'Cần Làm',
         priority: 'HIGH',
         assignee: 'Chi',
         dueDate: '2026-08-10',
-        checklists: [
-          { id: 101, textVi: 'Ký hợp đồng thuê', textJa: '賃貸契約締結', completed: true },
-          { id: 102, textVi: 'Thiết kế biển bảng', textJa: '看板デザイン', completed: false }
-        ],
+        checklists: [],
         attachments: []
       }
     ];
@@ -113,20 +97,9 @@ function MainApp({ user, onLogout }) {
     i18n.changeLanguage(currentLang.startsWith('vi') ? 'ja' : 'vi');
   };
 
-  const getProjName = (p) => {
-    if (isJa) return p.nameJa || p.nameVi || '';
-    return p.nameVi || p.nameJa || '';
-  };
-
-  const getTaskTitle = (task) => {
-    if (isJa) return task.titleJa || task.titleVi || '';
-    return task.titleVi || task.titleJa || '';
-  };
-
-  const getChecklistText = (item) => {
-    if (isJa) return item.textJa || item.textVi || '';
-    return item.textVi || item.textJa || '';
-  };
+  const getProjName = (p) => (isJa ? (p.nameJa || p.nameVi) : (p.nameVi || p.nameJa));
+  const getTaskTitle = (task) => (isJa ? (task.titleJa || task.titleVi) : (task.titleVi || task.titleJa));
+  const getChecklistText = (item) => (isJa ? (item.textJa || item.textVi) : (item.textVi || item.textJa));
 
   const handleDeleteProject = (projectId, e) => {
     if (e) { e.stopPropagation(); e.preventDefault(); }
@@ -221,12 +194,7 @@ function MainApp({ user, onLogout }) {
       const fileDataUrl = uploadEvent.target.result;
       setTasks(prev => prev.map(t => {
         if (t.id === taskId) {
-          const newAtt = { 
-            id: 'file_' + Date.now(), 
-            type: 'file', 
-            name: file.name, 
-            url: fileDataUrl 
-          };
+          const newAtt = { id: 'file_' + Date.now(), type: 'file', name: file.name, url: fileDataUrl };
           return { ...t, attachments: [...(t.attachments || []), newAtt] };
         }
         return t;
@@ -430,41 +398,6 @@ function MainApp({ user, onLogout }) {
                   <div className="bg-blue-600 h-3 rounded-full transition-all duration-500" style={{ width: `${overallProgress}%` }}></div>
                 </div>
               </div>
-
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-gray-100">
-                  <h3 className="text-lg font-bold text-gray-800">📋 {isJa ? '全チェックリスト一覧' : 'Bảng Tổng Hợp Checklist'}</h3>
-                  <div className="flex gap-2">
-                    <button onClick={() => setChecklistFilter('all')} className={`text-xs px-3 py-1.5 rounded-lg font-medium ${checklistFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}>{isJa ? 'すべて' : 'Tất cả'}</button>
-                    <button onClick={() => setChecklistFilter('pending')} className={`text-xs px-3 py-1.5 rounded-lg font-medium ${checklistFilter === 'pending' ? 'bg-yellow-500 text-white' : 'bg-gray-100 text-gray-600'}`}>{isJa ? '未完了' : 'Chưa xong'}</button>
-                    <button onClick={() => setChecklistFilter('completed')} className={`text-xs px-3 py-1.5 rounded-lg font-medium ${checklistFilter === 'completed' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600'}`}>{isJa ? '完了済み' : 'Đã xong'}</button>
-                  </div>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-semibold">
-                        <th className="p-3 w-10">{isJa ? '状態' : 'Trạng thái'}</th>
-                        <th className="p-3">{isJa ? '項目内容' : 'Nội dung'}</th>
-                        <th className="p-3">{isJa ? 'タスク名' : 'Tên Task'}</th>
-                        <th className="p-3">{isJa ? '所属フォルダ' : 'Dự án'}</th>
-                        <th className="p-3 text-right">{isJa ? '操作' : 'Thao tác'}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {filteredChecklist.map(item => (
-                        <tr key={item.id} className="hover:bg-gray-50">
-                          <td className="p-3"><input type="checkbox" checked={item.completed} onChange={() => toggleChecklist(item.taskId, item.id)} className="w-4 h-4 cursor-pointer" /></td>
-                          <td className={`p-3 font-medium ${item.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}>{getChecklistText(item)}</td>
-                          <td className="p-3 text-gray-600 font-medium">{item.taskTitle}</td>
-                          <td className="p-3"><span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md">📁 {item.projectName}</span></td>
-                          <td className="p-3 text-right"><button onClick={() => deleteChecklistItem(item.taskId, item.id)} className="text-red-400 hover:text-red-600">{isJa ? '削除' : 'Xóa'}</button></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
             </div>
           ) : (
             <div className="space-y-6">
@@ -594,20 +527,8 @@ function MainApp({ user, onLogout }) {
                                       className="border border-blue-500 rounded px-2 py-1 text-xs w-full focus:outline-none"
                                     />
                                     <div className="flex justify-end gap-1">
-                                      <button
-                                        type="button"
-                                        onClick={() => setEditingTaskId(null)}
-                                        className="bg-gray-200 text-gray-700 text-[11px] px-2 py-0.5 rounded font-bold"
-                                      >
-                                        Hủy
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleSaveTaskTitle(task.id)}
-                                        className="bg-blue-600 text-white text-[11px] px-3 py-0.5 rounded font-bold"
-                                      >
-                                        {isJa ? '保存' : 'Lưu'}
-                                      </button>
+                                      <button type="button" onClick={() => setEditingTaskId(null)} className="bg-gray-200 text-gray-700 text-[11px] px-2 py-0.5 rounded font-bold">Hủy</button>
+                                      <button type="button" onClick={() => handleSaveTaskTitle(task.id)} className="bg-blue-600 text-white text-[11px] px-3 py-0.5 rounded font-bold">{isJa ? '保存' : 'Lưu'}</button>
                                     </div>
                                   </div>
                                 ) : (
@@ -620,7 +541,7 @@ function MainApp({ user, onLogout }) {
                                         setEditTitleVi(task.titleVi || '');
                                         setEditTitleJa(task.titleJa || '');
                                       }}
-                                      className="text-gray-400 hover:text-blue-600 text-xs transition-opacity"
+                                      className="text-gray-400 hover:text-blue-600 text-xs"
                                       title="Sửa tên task"
                                     >
                                       ✏️
@@ -705,14 +626,7 @@ function MainApp({ user, onLogout }) {
                                   <div className="space-y-1">
                                     {task.attachments.map(att => (
                                       <div key={att.id} className="flex items-center justify-between text-xs bg-gray-50 px-2 py-1 rounded border border-gray-100 group">
-                                        <a 
-                                          href={att.url} 
-                                          target="_blank" 
-                                          rel="noreferrer" 
-                                          download={att.type === 'file' ? att.name : undefined}
-                                          className="text-blue-600 hover:underline truncate pr-2 max-w-[170px]" 
-                                          title={att.name}
-                                        >
+                                        <a href={att.url} target="_blank" rel="noreferrer" download={att.type === 'file' ? att.name : undefined} className="text-blue-600 hover:underline truncate pr-2 max-w-[170px]" title={att.name}>
                                           {att.type === 'file' ? '💾 ' : '📄 '} {att.name}
                                         </a>
                                         <button type="button" onClick={() => handleDeleteAttachment(task.id, att.id)} className="text-gray-400 hover:text-red-500 text-[10px]">✕</button>
@@ -724,28 +638,10 @@ function MainApp({ user, onLogout }) {
                                 )}
 
                                 <div className="space-y-1 pt-1 border-t border-dashed border-gray-200">
-                                  <input 
-                                    type="text" 
-                                    placeholder={isJa ? '資料名 (例: 契約書)' : 'Tên link (VD: Tài liệu thiết kế)'} 
-                                    value={attNameInputs[task.id] || ''} 
-                                    onChange={(e) => setAttNameInputs({ ...attNameInputs, [task.id]: e.target.value })} 
-                                    className="w-full text-[11px] border border-gray-200 rounded px-2 py-1 focus:outline-none" 
-                                  />
+                                  <input type="text" placeholder={isJa ? '資料名 (例: 契約書)' : 'Tên link (VD: Tài liệu thiết kế)'} value={attNameInputs[task.id] || ''} onChange={(e) => setAttNameInputs({ ...attNameInputs, [task.id]: e.target.value })} className="w-full text-[11px] border border-gray-200 rounded px-2 py-1 focus:outline-none" />
                                   <div className="flex gap-1">
-                                    <input 
-                                      type="text" 
-                                      placeholder="URL (https://...)" 
-                                      value={attUrlInputs[task.id] || ''} 
-                                      onChange={(e) => setAttUrlInputs({ ...attUrlInputs, [task.id]: e.target.value })} 
-                                      className="w-full text-[11px] border border-gray-200 rounded px-2 py-1 focus:outline-none" 
-                                    />
-                                    <button 
-                                      type="button" 
-                                      onClick={() => handleAddAttachmentUrl(task.id)}
-                                      className="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] px-3 py-1 rounded font-bold shrink-0 shadow-sm"
-                                    >
-                                      + Link
-                                    </button>
+                                    <input type="text" placeholder="URL (https://...)" value={attUrlInputs[task.id] || ''} onChange={(e) => setAttUrlInputs({ ...attUrlInputs, [task.id]: e.target.value })} className="w-full text-[11px] border border-gray-200 rounded px-2 py-1 focus:outline-none" />
+                                    <button type="button" onClick={() => handleAddAttachmentUrl(task.id)} className="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] px-3 py-1 rounded font-bold shrink-0 shadow-sm">+ Link</button>
                                   </div>
                                 </div>
                               </div>
