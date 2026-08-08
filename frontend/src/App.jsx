@@ -1,14 +1,11 @@
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLanguageShortcut } from './useLanguageShortcut';
 
-// Helper dịch có Timeout
 async function autoTranslateText(text, targetLang) {
   if (!text || !text.trim()) return text;
-  
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 3000);
-
   try {
     const langPair = targetLang === 'ja' ? 'vi|ja' : 'ja|vi';
     const res = await fetch(
@@ -21,21 +18,16 @@ async function autoTranslateText(text, targetLang) {
       return data.responseData.translatedText;
     }
   } catch (error) {
-    console.warn('Tự động dịch bỏ qua/lỗi timeout, dùng chuỗi gốc:', error);
+    console.warn('Translate fallback:', error);
   }
   return text;
 }
 
-// -------------------------------------------------------------
-// GIAO DIỆN CHÍNH KANBAN APP
-// -------------------------------------------------------------
 function MainApp({ user, onLogout }) {
   const { t, i18n } = useTranslation();
   useLanguageShortcut();
-
   const isJa = i18n.language && i18n.language.startsWith('ja');
 
-  // 1. ĐỌC DỮ LIỆU TỪ LOCALSTORAGE
   const [projects, setProjects] = useState(() => {
     const saved = localStorage.getItem('kanban_projects');
     if (saved) {
@@ -69,49 +61,34 @@ function MainApp({ user, onLogout }) {
     ];
   });
 
-  useEffect(() => {
-    localStorage.setItem('kanban_projects', JSON.stringify(projects));
-  }, [projects]);
-
-  useEffect(() => {
-    localStorage.setItem('kanban_tasks', JSON.stringify(tasks));
-  }, [tasks]);
+  useEffect(() => { localStorage.setItem('kanban_projects', JSON.stringify(projects)); }, [projects]);
+  useEffect(() => { localStorage.setItem('kanban_tasks', JSON.stringify(tasks)); }, [tasks]);
 
   const [currentView, setCurrentView] = useState('p1');
   const [newProjectName, setNewProjectName] = useState('');
   const [checklistFilter, setChecklistFilter] = useState('all');
   const [isTranslating, setIsTranslating] = useState(false);
 
-  // State form tạo task mới (có thêm người phụ trách & thời hạn)
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskAssignee, setNewTaskAssignee] = useState('');
   const [newTaskDueDate, setNewTaskDueDate] = useState('');
-
   const [newChecklistText, setNewChecklistText] = useState({});
 
   const toggleLanguage = () => {
     const currentLang = i18n.language || 'vi';
-    const nextLang = currentLang.startsWith('vi') ? 'ja' : 'vi';
-    i18n.changeLanguage(nextLang);
+    i18n.changeLanguage(currentLang.startsWith('vi') ? 'ja' : 'vi');
   };
 
+  // Hàm hiển thị an toàn (nếu thiếu bản dịch sẽ tự lấy chữ gốc)
   const getProjName = (p) => isJa ? (p.nameJa || p.nameVi) : (p.nameVi || p.nameJa);
   const getTaskTitle = (task) => isJa ? (task.titleJa || task.titleVi) : (task.titleVi || task.titleJa);
   const getChecklistText = (item) => isJa ? (item.textJa || item.textVi) : (item.textVi || item.textJa);
 
   const handleDeleteProject = (projectId, e) => {
-    if (e) {
-      e.stopPropagation();
-      e.preventDefault();
-    }
+    if (e) { e.stopPropagation(); e.preventDefault(); }
     const targetProj = projects.find(p => p.id === projectId);
     const projName = targetProj ? getProjName(targetProj) : '';
-    
-    const confirmMsg = isJa 
-      ? `「${projName}」を削除してもよろしいですか？` 
-      : `Bạn có chắc muốn xóa dự án "${projName}" cùng toàn bộ task bên trong?`;
-
-    if (window.confirm(confirmMsg)) {
+    if (window.confirm(isJa ? `「${projName}」を削除しますか？` : `Xóa dự án "${projName}"?`)) {
       setProjects(prev => prev.filter(p => p.id !== projectId));
       setTasks(prev => prev.filter(t => t.projectId !== projectId));
       if (currentView === projectId) setCurrentView('overview');
@@ -121,18 +98,12 @@ function MainApp({ user, onLogout }) {
   const handleAddProject = async (e) => {
     e.preventDefault();
     if (!newProjectName.trim()) return;
-
     setIsTranslating(true);
     const textInput = newProjectName.trim();
-    let nameVi = textInput;
-    let nameJa = textInput;
-
+    let nameVi = textInput, nameJa = textInput;
     try {
-      if (isJa) {
-        nameVi = await autoTranslateText(textInput, 'vi');
-      } else {
-        nameJa = await autoTranslateText(textInput, 'ja');
-      }
+      if (isJa) nameVi = await autoTranslateText(textInput, 'vi');
+      else nameJa = await autoTranslateText(textInput, 'ja');
     } finally {
       const newProj = { id: 'p_' + Date.now(), nameVi, nameJa };
       setProjects(prev => [...prev, newProj]);
@@ -145,18 +116,12 @@ function MainApp({ user, onLogout }) {
   const handleAddTask = async (e) => {
     e.preventDefault();
     if (!newTaskTitle.trim()) return;
-
     setIsTranslating(true);
     const textInput = newTaskTitle.trim();
-    let titleVi = textInput;
-    let titleJa = textInput;
-
+    let titleVi = textInput, titleJa = textInput;
     try {
-      if (isJa) {
-        titleVi = await autoTranslateText(textInput, 'vi');
-      } else {
-        titleJa = await autoTranslateText(textInput, 'ja');
-      }
+      if (isJa) titleVi = await autoTranslateText(textInput, 'vi');
+      else titleJa = await autoTranslateText(textInput, 'ja');
     } finally {
       const newTask = {
         id: Date.now(),
@@ -180,25 +145,16 @@ function MainApp({ user, onLogout }) {
     e.preventDefault();
     const text = newChecklistText[taskId];
     if (!text || !text.trim()) return;
-
     setIsTranslating(true);
     const textInput = text.trim();
-    let textVi = textInput;
-    let textJa = textInput;
-
+    let textVi = textInput, textJa = textInput;
     try {
-      if (isJa) {
-        textVi = await autoTranslateText(textInput, 'vi');
-      } else {
-        textJa = await autoTranslateText(textInput, 'ja');
-      }
+      if (isJa) textVi = await autoTranslateText(textInput, 'vi');
+      else textJa = await autoTranslateText(textInput, 'ja');
     } finally {
       setTasks(prev => prev.map(t => {
         if (t.id === taskId) {
-          return {
-            ...t,
-            checklists: [...t.checklists, { id: Date.now(), textVi, textJa, completed: false }]
-          };
+          return { ...t, checklists: [...t.checklists, { id: Date.now(), textVi, textJa, completed: false }] };
         }
         return t;
       }));
@@ -230,10 +186,7 @@ function MainApp({ user, onLogout }) {
   const deleteChecklistItem = (taskId, itemId) => {
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
-        return {
-          ...t,
-          checklists: t.checklists.filter(c => c.id !== itemId)
-        };
+        return { ...t, checklists: t.checklists.filter(c => c.id !== itemId) };
       }
       return t;
     }));
@@ -262,65 +215,46 @@ function MainApp({ user, onLogout }) {
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col font-sans relative">
-      {/* Indicator đang dịch */}
       {isTranslating && (
         <div className="fixed top-4 right-4 z-50 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg text-xs font-semibold flex items-center gap-2 animate-bounce">
           ⚡ {isJa ? '自動翻訳中...' : 'Đang tự động dịch...'}
         </div>
       )}
 
-      {/* Header */}
       <header className="bg-white border-b border-gray-200 px-6 py-4 shadow-sm flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">{isJa ? 'プロジェクト進捗レポート' : 'Báo Cáo Tiến Độ Dự Án'}</h1>
-          <p className="text-sm text-gray-500">{isJa ? 'タスク追跡システム＆チェックリスト総合' : 'Hệ thống theo dõi công việc & Bảng tổng hợp Checklist'}</p>
+          <p className="text-sm text-gray-500">{isJa ? 'タスク追跡システム＆チェックリスト総合' : 'Hệ thống theo dõi công việc'}</p>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-xs bg-gray-50 border border-gray-200 text-gray-700 px-3 py-1.5 rounded-lg">
-            👤 {user}
-          </span>
-          <button
-            onClick={onLogout}
-            className="text-xs text-red-600 hover:bg-red-50 border border-red-200 px-3 py-1.5 rounded-lg font-semibold transition-colors"
-          >
-            Đăng xuất
-          </button>
-          <button
-            onClick={toggleLanguage}
-            className="px-3 py-1.5 text-sm font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50 shadow-sm transition-colors"
-          >
+          <span className="text-xs bg-gray-50 border border-gray-200 text-gray-700 px-3 py-1.5 rounded-lg">👤 {user}</span>
+          <button onClick={onLogout} className="text-xs text-red-600 hover:bg-red-50 border border-red-200 px-3 py-1.5 rounded-lg font-semibold">Đăng xuất</button>
+          <button onClick={toggleLanguage} className="px-3 py-1.5 text-sm font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50 shadow-sm">
             🌐 {isJa ? 'JP 日本語' : 'VN Tiếng Việt'}
           </button>
         </div>
       </header>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar */}
         <aside className="w-64 bg-white border-r border-gray-200 p-4 flex flex-col">
           <button
             onClick={() => setCurrentView('overview')}
-            className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-bold mb-4 flex items-center gap-2 transition-colors ${
-              currentView === 'overview'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-bold mb-4 flex items-center gap-2 ${
+              currentView === 'overview' ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
             📊 {isJa ? 'ダッシュボード' : 'Trang Tổng Hợp'}
           </button>
 
-          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-            {isJa ? 'プロジェクト一覧' : 'DANH MỤC DỰ ÁN'}
-          </h2>
-
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{isJa ? 'プロジェクト一覧' : 'DANH MỤC DỰ ÁN'}</h2>
+          
           <div className="flex-1 overflow-y-auto space-y-1">
             {projects.map(p => (
               <div
                 key={p.id}
                 onClick={() => setCurrentView(p.id)}
-                className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex justify-between items-center cursor-pointer ${
-                  currentView === p.id 
-                    ? 'bg-blue-50 text-blue-600 font-semibold' 
-                    : 'text-gray-600 hover:bg-gray-100'
+                className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex justify-between items-center cursor-pointer ${
+                  currentView === p.id ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
                 <span className="truncate pr-1">📁 {getProjName(p)}</span>
@@ -328,13 +262,7 @@ function MainApp({ user, onLogout }) {
                   <span className="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">
                     {tasks.filter(t => t.projectId === p.id).length}
                   </span>
-                  <button
-                    onClick={(e) => handleDeleteProject(p.id, e)}
-                    className="text-red-400 hover:text-red-600 p-1 hover:bg-red-100 rounded text-xs transition-colors"
-                    title={isJa ? '削除' : 'Xóa dự án này'}
-                  >
-                    🗑️
-                  </button>
+                  <button onClick={(e) => handleDeleteProject(p.id, e)} className="text-red-400 hover:text-red-600 p-1 text-xs">🗑️</button>
                 </div>
               </div>
             ))}
@@ -348,18 +276,14 @@ function MainApp({ user, onLogout }) {
               onChange={(e) => setNewProjectName(e.target.value)}
               className="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-500"
             />
-            <button type="submit" disabled={isTranslating} className="bg-blue-600 text-white text-sm px-3 py-1.5 rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50">
-              {isJa ? '追加' : 'Thêm'}
-            </button>
+            <button type="submit" disabled={isTranslating} className="bg-blue-600 text-white text-sm px-3 py-1.5 rounded-lg">{isJa ? '追加' : 'Thêm'}</button>
           </form>
         </aside>
 
-        {/* Main Area */}
         <main className="flex-1 p-6 overflow-y-auto">
           {currentView === 'overview' ? (
             <div className="space-y-6">
               <h2 className="text-xl font-bold text-gray-800">📊 {isJa ? '全体レポート概要' : 'Báo Cáo Tổng Quan'}</h2>
-
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
                   <p className="text-xs text-gray-500 font-medium">{isJa ? '総プロジェクト数' : 'Tổng số dự án'}</p>
@@ -379,38 +303,13 @@ function MainApp({ user, onLogout }) {
                 </div>
               </div>
 
-              {/* Bảng Checklist */}
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-gray-100">
-                  <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                    📋 {isJa ? '全チェックリスト一覧' : 'Bảng Tổng Hợp Checklist'}
-                  </h3>
-
+                  <h3 className="text-lg font-bold text-gray-800">📋 {isJa ? '全チェックリスト一覧' : 'Bảng Tổng Hợp Checklist'}</h3>
                   <div className="flex gap-2">
-                    <button
-                      onClick={() => setChecklistFilter('all')}
-                      className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                        checklistFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      {isJa ? 'すべて' : 'Tất cả'} ({allChecklistItems.length})
-                    </button>
-                    <button
-                      onClick={() => setChecklistFilter('pending')}
-                      className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                        checklistFilter === 'pending' ? 'bg-yellow-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      {isJa ? '未完了' : 'Chưa xong'} ({allChecklistItems.filter(i => !i.completed).length})
-                    </button>
-                    <button
-                      onClick={() => setChecklistFilter('completed')}
-                      className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                        checklistFilter === 'completed' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      {isJa ? '完了済み' : 'Đã xong'} ({allChecklistItems.filter(i => i.completed).length})
-                    </button>
+                    <button onClick={() => setChecklistFilter('all')} className={`text-xs px-3 py-1.5 rounded-lg font-medium ${checklistFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}>{isJa ? 'すべて' : 'Tất cả'}</button>
+                    <button onClick={() => setChecklistFilter('pending')} className={`text-xs px-3 py-1.5 rounded-lg font-medium ${checklistFilter === 'pending' ? 'bg-yellow-500 text-white' : 'bg-gray-100 text-gray-600'}`}>{isJa ? '未完了' : 'Chưa xong'}</button>
+                    <button onClick={() => setChecklistFilter('completed')} className={`text-xs px-3 py-1.5 rounded-lg font-medium ${checklistFilter === 'completed' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600'}`}>{isJa ? '完了済み' : 'Đã xong'}</button>
                   </div>
                 </div>
 
@@ -427,32 +326,12 @@ function MainApp({ user, onLogout }) {
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {filteredChecklist.map(item => (
-                        <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="p-3">
-                            <input
-                              type="checkbox"
-                              checked={item.completed}
-                              onChange={() => toggleChecklist(item.taskId, item.id)}
-                              className="rounded text-blue-600 focus:ring-0 w-4 h-4 cursor-pointer"
-                            />
-                          </td>
-                          <td className={`p-3 font-medium ${item.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}>
-                            {getChecklistText(item)}
-                          </td>
+                        <tr key={item.id} className="hover:bg-gray-50">
+                          <td className="p-3"><input type="checkbox" checked={item.completed} onChange={() => toggleChecklist(item.taskId, item.id)} className="w-4 h-4 cursor-pointer" /></td>
+                          <td className={`p-3 font-medium ${item.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}>{getChecklistText(item)}</td>
                           <td className="p-3 text-gray-600 font-medium">{item.taskTitle}</td>
-                          <td className="p-3">
-                            <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md font-medium">
-                              📁 {item.projectName}
-                            </span>
-                          </td>
-                          <td className="p-3 text-right">
-                            <button
-                              onClick={() => deleteChecklistItem(item.taskId, item.id)}
-                              className="text-red-400 hover:text-red-600 font-medium"
-                            >
-                              {isJa ? '削除' : 'Xóa'}
-                            </button>
-                          </td>
+                          <td className="p-3"><span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md">📁 {item.projectName}</span></td>
+                          <td className="p-3 text-right"><button onClick={() => deleteChecklistItem(item.taskId, item.id)} className="text-red-400 hover:text-red-600">{isJa ? '削除' : 'Xóa'}</button></td>
                         </tr>
                       ))}
                     </tbody>
@@ -461,60 +340,26 @@ function MainApp({ user, onLogout }) {
               </div>
             </div>
           ) : (
-            /* VIEW DỰ ÁN CHI TIẾT (KANBAN) */
             <div>
-              {/* Form tạo task mới tích hợp Người phụ trách & Thời hạn */}
               <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-6 space-y-3">
-                <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
-                  ✨ {isJa ? '新しいタスクを追加' : 'Thêm Công Việc Mới'}
-                </h3>
+                <h3 className="text-sm font-bold text-gray-800">✨ {isJa ? '新しいタスクを追加' : 'Thêm Công Việc Mới'}</h3>
                 <form onSubmit={handleAddTask} className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                  <input
-                    type="text"
-                    placeholder={isJa ? 'タスク名を入力...' : 'Nhập tên công việc...'}
-                    value={newTaskTitle}
-                    onChange={(e) => setNewTaskTitle(e.target.value)}
-                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                    required
-                  />
-                  <input
-                    type="text"
-                    placeholder={isJa ? '担当者 (例: チン)' : 'Người phụ trách (VD: Chi)'}
-                    value={newTaskAssignee}
-                    onChange={(e) => setNewTaskAssignee(e.target.value)}
-                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                  />
-                  <input
-                    type="date"
-                    value={newTaskDueDate}
-                    onChange={(e) => setNewTaskDueDate(e.target.value)}
-                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 text-gray-600"
-                  />
-                  <button 
-                    type="submit" 
-                    disabled={isTranslating} 
-                    className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg shadow-sm disabled:opacity-50 transition-colors"
-                  >
-                    {isJa ? '＋ タスクを作成' : '＋ Tạo Task'}
-                  </button>
+                  <input type="text" placeholder={isJa ? 'タスク名を入力...' : 'Nhập tên công việc...'} value={newTaskTitle} onChange={(e) => setNewTaskTitle(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" required />
+                  <input type="text" placeholder={isJa ? '担当者' : 'Người phụ trách'} value={newTaskAssignee} onChange={(e) => setNewTaskAssignee(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+                  <input type="date" value={newTaskDueDate} onChange={(e) => setNewTaskDueDate(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-600" />
+                  <button type="submit" disabled={isTranslating} className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">{isJa ? '＋ タスクを作成' : '＋ Tạo Task'}</button>
                 </form>
               </div>
 
               <div className="flex items-center justify-between mb-6 border-b border-gray-200 pb-4">
-                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                  📁 {currentProjectObj ? getProjName(currentProjectObj) : (isJa ? 'プロジェクト' : 'Dự Án')}
-                </h2>
+                <h2 className="text-2xl font-bold text-gray-800">📁 {currentProjectObj ? getProjName(currentProjectObj) : ''}</h2>
                 {currentProjectObj && (
-                  <button
-                    onClick={(e) => handleDeleteProject(currentProjectObj.id, e)}
-                    className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1 transition-colors shadow-sm cursor-pointer"
-                  >
+                  <button onClick={(e) => handleDeleteProject(currentProjectObj.id, e)} className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs px-3 py-1.5 rounded-lg font-semibold">
                     🗑️ {isJa ? 'このプロジェクトを削除' : 'Xóa dự án này'}
                   </button>
                 )}
               </div>
 
-              {/* BẢNG KANBAN 3 CỘT */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 align-top">
                 {[
                   { id: 'Cần Làm', labelVi: 'Cần Làm', labelJa: '未着手', icon: '🟡' },
@@ -522,16 +367,11 @@ function MainApp({ user, onLogout }) {
                   { id: 'Đã Xong', labelVi: 'Đã Xong', labelJa: '完了', icon: '🟢' }
                 ].map(col => {
                   const statusTasks = tasks.filter(t => t.projectId === currentView && t.status === col.id);
-
                   return (
                     <div key={col.id} className="bg-gray-50 rounded-xl p-4 border border-gray-200 flex flex-col gap-3">
                       <div className="flex justify-between items-center pb-2 border-b border-gray-200">
-                        <span className="font-semibold text-gray-700 text-sm flex items-center gap-2">
-                          {col.icon} {isJa ? col.labelJa : col.labelVi}
-                        </span>
-                        <span className="bg-white text-gray-600 text-xs px-2 py-0.5 rounded-full font-medium border border-gray-200 shadow-sm">
-                          {statusTasks.length}
-                        </span>
+                        <span className="font-semibold text-gray-700 text-sm">{col.icon} {isJa ? col.labelJa : col.labelVi}</span>
+                        <span className="bg-white text-gray-600 text-xs px-2 py-0.5 rounded-full border border-gray-200">{statusTasks.length}</span>
                       </div>
 
                       {statusTasks.map(task => {
@@ -543,36 +383,22 @@ function MainApp({ user, onLogout }) {
                           <div key={task.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
                             <div className="flex justify-between items-start">
                               <h3 className="font-semibold text-gray-800 text-sm">{getTaskTitle(task)}</h3>
-                              <button onClick={() => handleDeleteTask(task.id)} className="text-xs text-red-400 hover:text-red-600">
-                                {isJa ? '削除' : 'Xóa'}
-                              </button>
+                              <button onClick={() => handleDeleteTask(task.id)} className="text-xs text-red-400 hover:text-red-600">{isJa ? '削除' : 'Xóa'}</button>
                             </div>
 
-                            {/* HIỂN THỊ NGƯỜI PHỤ TRÁCH & THỜI GIAN THỰC HIỆN */}
-                            <div className="flex flex-wrap gap-2 text-xs pt-0.5">
-                              {task.assignee && (
-                                <span className="bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-md font-medium flex items-center gap-1">
-                                  👤 {task.assignee}
-                                </span>
-                              )}
-                              {task.dueDate && (
-                                <span className="bg-orange-50 text-orange-700 border border-orange-200 px-2 py-0.5 rounded-md font-medium flex items-center gap-1">
-                                  ⏳ {task.dueDate}
-                                </span>
-                              )}
+                            <div className="flex flex-wrap gap-2 text-xs">
+                              {task.assignee && <span className="bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-md font-medium">👤 {task.assignee}</span>}
+                              {task.dueDate && <span className="bg-orange-50 text-orange-700 border border-orange-200 px-2 py-0.5 rounded-md font-medium">⏳ {task.dueDate}</span>}
                             </div>
 
                             {totalItems > 0 && (
                               <div className="space-y-1">
                                 <div className="flex justify-between text-xs text-gray-500">
-                                  <span>{isJa ? 'チェックリスト進捗' : 'Tiến độ Checklist'}</span>
+                                  <span>{isJa ? '進捗' : 'Tiến độ'}</span>
                                   <span>{completedItems}/{totalItems} ({progressPercent}%)</span>
                                 </div>
                                 <div className="w-full bg-gray-200 h-1.5 rounded-full overflow-hidden">
-                                  <div 
-                                    className={`h-full transition-all duration-300 ${progressPercent === 100 ? 'bg-green-500' : 'bg-blue-500'}`}
-                                    style={{ width: `${progressPercent}%` }}
-                                  ></div>
+                                  <div className={`h-full ${progressPercent === 100 ? 'bg-green-500' : 'bg-blue-500'}`} style={{ width: `${progressPercent}%` }}></div>
                                 </div>
                               </div>
                             )}
@@ -581,48 +407,22 @@ function MainApp({ user, onLogout }) {
                               {task.checklists.map(item => (
                                 <div key={item.id} className="flex items-center justify-between text-xs group">
                                   <label className="flex items-center gap-2 cursor-pointer flex-1 pr-2">
-                                    <input
-                                      type="checkbox"
-                                      checked={item.completed}
-                                      onChange={() => toggleChecklist(task.id, item.id)}
-                                      className="rounded text-blue-600 focus:ring-0 w-3.5 h-3.5"
-                                    />
-                                    <span className={item.completed ? 'line-through text-gray-400' : 'text-gray-700'}>
-                                      {getChecklistText(item)}
-                                    </span>
+                                    <input type="checkbox" checked={item.completed} onChange={() => toggleChecklist(task.id, item.id)} className="rounded text-blue-600 w-3.5 h-3.5" />
+                                    <span className={item.completed ? 'line-through text-gray-400' : 'text-gray-700'}>{getChecklistText(item)}</span>
                                   </label>
-                                  <button 
-                                    onClick={() => deleteChecklistItem(task.id, item.id)}
-                                    className="text-gray-300 hover:text-red-500 hidden group-hover:block"
-                                  >
-                                    ✕
-                                  </button>
+                                  <button onClick={() => deleteChecklistItem(task.id, item.id)} className="text-gray-300 hover:text-red-500 hidden group-hover:block">✕</button>
                                 </div>
                               ))}
                             </div>
 
-                            {/* Form thêm mục con checklist */}
                             <form onSubmit={(e) => handleAddChecklist(task.id, e)} className="flex gap-1 pt-1">
-                              <input
-                                type="text"
-                                placeholder={isJa ? '+ サブ項目を追加...' : '+ Thêm mục con...'}
-                                value={newChecklistText[task.id] || ''}
-                                onChange={(e) => setNewChecklistText({ ...newChecklistText, [task.id]: e.target.value })}
-                                className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:border-blue-500"
-                              />
-                              <button type="submit" disabled={isTranslating} className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs px-2.5 py-1.5 rounded font-medium disabled:opacity-50">
-                                {isJa ? '追加' : 'Thêm'}
-                              </button>
+                              <input type="text" placeholder={isJa ? '+ 追加...' : '+ Thêm mục con...'} value={newChecklistText[task.id] || ''} onChange={(e) => setNewChecklistText({ ...newChecklistText, [task.id]: e.target.value })} className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none" />
+                              <button type="submit" disabled={isTranslating} className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs px-2.5 py-1.5 rounded font-medium">{isJa ? '追加' : 'Thêm'}</button>
                             </form>
 
-                            {/* Thay đổi trạng thái Task */}
                             <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
                               <span className="text-[11px] text-gray-400">{isJa ? 'ステータス' : 'Trạng thái'}</span>
-                              <select
-                                value={task.status}
-                                onChange={(e) => handleStatusChange(task.id, e.target.value)}
-                                className="text-xs border border-gray-200 rounded px-2 py-1 bg-white focus:outline-none text-gray-700 font-medium"
-                              >
+                              <select value={task.status} onChange={(e) => handleStatusChange(task.id, e.target.value)} className="text-xs border border-gray-200 rounded px-2 py-1 bg-white text-gray-700 font-medium">
                                 <option value="Cần Làm">{isJa ? '未着手' : 'Cần Làm'}</option>
                                 <option value="Đang Làm">{isJa ? '進行中' : 'Đang Làm'}</option>
                                 <option value="Đã Xong">{isJa ? '完了' : 'Đã Xong'}</option>
@@ -643,15 +443,8 @@ function MainApp({ user, onLogout }) {
   );
 }
 
-// -------------------------------------------------------------
-// MAIN COMPONENT ROOT
-// -------------------------------------------------------------
 export default function App() {
-  const [user, setUser] = useState("Chinguyen");
-
-  const handleLogout = () => {
-    setUser("Chinguyen");
-  };
-
+  const [user] = useState("Chinguyen");
+  const handleLogout = () => {};
   return <MainApp user={user} onLogout={handleLogout} />;
 }
