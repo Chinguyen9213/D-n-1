@@ -1,21 +1,27 @@
-import React, { useState, Suspense } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLanguageShortcut } from './useLanguageShortcut';
 
-// Helper tự động dịch bằng API MyMemory
+// Helper dịch có Timeout (không lo đơ app nếu API lỗi)
 async function autoTranslateText(text, targetLang) {
   if (!text || !text.trim()) return text;
+  
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 3000); // Hạn giờ 3 giây
+
   try {
     const langPair = targetLang === 'ja' ? 'vi|ja' : 'ja|vi';
     const res = await fetch(
-      `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${langPair}`
+      `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${langPair}`,
+      { signal: controller.signal }
     );
+    clearTimeout(timeoutId);
     const data = await res.json();
     if (data && data.responseData && data.responseData.translatedText) {
       return data.responseData.translatedText;
     }
   } catch (error) {
-    console.error('Lỗi tự động dịch:', error);
+    console.warn('Tự động dịch bỏ qua/lỗi timeout, dùng chuỗi gốc:', error);
   }
   return text;
 }
@@ -26,55 +32,63 @@ function MainApp() {
 
   const isJa = i18n.language && i18n.language.startsWith('ja');
 
-  // Danh sách dự án
-  const [projects, setProjects] = useState([
-    { id: 'p1', nameVi: 'Khai Trương Cửa Hàng', nameJa: '店舗オープン' },
-    { id: 'p2', nameVi: 'Marketing & Quảng Cáo', nameJa: 'マーケティング＆広告' }
-  ]);
+  // 1. ĐỌC DỮ LIỆU TỪ LOCALSTORAGE KHI MỞ TRANG
+  const [projects, setProjects] = useState(() => {
+    const saved = localStorage.getItem('kanban_projects');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { console.error(e); }
+    }
+    return [
+      { id: 'p1', nameVi: 'Khai Trương Cửa Hàng', nameJa: '店舗オープン' },
+      { id: 'p2', nameVi: 'Marketing & Quảng Cáo', nameJa: 'マーケティング＆広告' }
+    ];
+  });
+
+  const [tasks, setTasks] = useState(() => {
+    const saved = localStorage.getItem('kanban_tasks');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { console.error(e); }
+    }
+    return [
+      {
+        id: 1,
+        projectId: 'p1',
+        titleVi: 'Thuê mặt bằng & Thi công',
+        titleJa: '物件契約＆施工',
+        status: 'Đang Làm',
+        checklists: [
+          { id: 101, textVi: 'Ký hợp đồng thuê', textJa: '賃貸契約締結', completed: true },
+          { id: 102, textVi: 'Thiết kế biển bảng', textJa: '看板デザイン', completed: true },
+          { id: 103, textVi: 'Sơn sửa lại cửa hàng', textJa: '店舗内装・塗装', completed: true }
+        ]
+      },
+      {
+        id: 2,
+        projectId: 'p1',
+        titleVi: 'Tuyển dụng nhân sự',
+        titleJa: '採用・人材募集',
+        status: 'Cần Làm',
+        checklists: [
+          { id: 201, textVi: 'Đăng tin tuyển dụng', textJa: '求人情報掲載', completed: true },
+          { id: 202, textVi: 'Phỏng vấn thu ngân', textJa: 'レジ担当面接', completed: false }
+        ]
+      }
+    ];
+  });
+
+  // 2. TỰ ĐỘNG LƯU VÀO LOCALSTORAGE MỖI KHI DỮ LIỆU THAY ĐỔI
+  useEffect(() => {
+    localStorage.setItem('kanban_projects', JSON.stringify(projects));
+  }, [projects]);
+
+  useEffect(() => {
+    localStorage.setItem('kanban_tasks', JSON.stringify(tasks));
+  }, [tasks]);
 
   const [currentView, setCurrentView] = useState('p1');
   const [newProjectName, setNewProjectName] = useState('');
   const [checklistFilter, setChecklistFilter] = useState('all');
   const [isTranslating, setIsTranslating] = useState(false);
-
-  // Mảng Task mẫu
-  const [tasks, setTasks] = useState([
-    {
-      id: 1,
-      projectId: 'p1',
-      titleVi: 'Thuê mặt bằng & Thi công',
-      titleJa: '物件契約＆施工',
-      status: 'Đang Làm',
-      checklists: [
-        { id: 101, textVi: 'Ký hợp đồng thuê', textJa: '賃貸契約締結', completed: true },
-        { id: 102, textVi: 'Thiết kế biển bảng', textJa: '看板デザイン', completed: true },
-        { id: 103, textVi: 'Sơn sửa lại cửa hàng', textJa: '店舗内装・塗装', completed: true }
-      ]
-    },
-    {
-      id: 2,
-      projectId: 'p1',
-      titleVi: 'Tuyển dụng nhân sự',
-      titleJa: '採用・人材募集',
-      status: 'Cần Làm',
-      checklists: [
-        { id: 201, textVi: 'Đăng tin tuyển dụng', textJa: '求人情報掲載', completed: true },
-        { id: 202, textVi: 'Phỏng vấn thu ngân', textJa: 'レジ担当面接', completed: false }
-      ]
-    },
-    {
-      id: 3,
-      projectId: 'p2',
-      titleVi: 'Chạy quảng cáo Facebook',
-      titleJa: 'Facebook広告運用',
-      status: 'Đang Làm',
-      checklists: [
-        { id: 301, textVi: 'Tạo Fanpage', textJa: 'Fanpage作成', completed: true },
-        { id: 302, textVi: 'Nạp ngân sách QC', textJa: '広告予算チャージ', completed: false }
-      ]
-    }
-  ]);
-
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newChecklistText, setNewChecklistText] = useState({});
 
@@ -88,13 +102,12 @@ function MainApp() {
   const getTaskTitle = (task) => isJa ? (task.titleJa || task.titleVi) : (task.titleVi || task.titleJa);
   const getChecklistText = (item) => isJa ? (item.textJa || item.textVi) : (item.textVi || item.textJa);
 
-  // HÀM XÓA DỰ ÁN
+  // Xóa dự án
   const handleDeleteProject = (projectId, e) => {
     if (e) {
       e.stopPropagation();
       e.preventDefault();
     }
-
     const targetProj = projects.find(p => p.id === projectId);
     const projName = targetProj ? getProjName(targetProj) : '';
     
@@ -121,17 +134,19 @@ function MainApp() {
     let nameVi = textInput;
     let nameJa = textInput;
 
-    if (isJa) {
-      nameVi = await autoTranslateText(textInput, 'vi');
-    } else {
-      nameJa = await autoTranslateText(textInput, 'ja');
+    try {
+      if (isJa) {
+        nameVi = await autoTranslateText(textInput, 'vi');
+      } else {
+        nameJa = await autoTranslateText(textInput, 'ja');
+      }
+    } finally {
+      const newProj = { id: 'p_' + Date.now(), nameVi, nameJa };
+      setProjects(prev => [...prev, newProj]);
+      setCurrentView(newProj.id);
+      setNewProjectName('');
+      setIsTranslating(false);
     }
-
-    const newProj = { id: 'p_' + Date.now(), nameVi, nameJa };
-    setProjects(prev => [...prev, newProj]);
-    setCurrentView(newProj.id);
-    setNewProjectName('');
-    setIsTranslating(false);
   };
 
   // Thêm task mới
@@ -144,23 +159,25 @@ function MainApp() {
     let titleVi = textInput;
     let titleJa = textInput;
 
-    if (isJa) {
-      titleVi = await autoTranslateText(textInput, 'vi');
-    } else {
-      titleJa = await autoTranslateText(textInput, 'ja');
+    try {
+      if (isJa) {
+        titleVi = await autoTranslateText(textInput, 'vi');
+      } else {
+        titleJa = await autoTranslateText(textInput, 'ja');
+      }
+    } finally {
+      const newTask = {
+        id: Date.now(),
+        projectId: currentView,
+        titleVi,
+        titleJa,
+        status: 'Cần Làm',
+        checklists: []
+      };
+      setTasks(prev => [...prev, newTask]);
+      setNewTaskTitle('');
+      setIsTranslating(false);
     }
-
-    const newTask = {
-      id: Date.now(),
-      projectId: currentView,
-      titleVi,
-      titleJa,
-      status: 'Cần Làm',
-      checklists: []
-    };
-    setTasks(prev => [...prev, newTask]);
-    setNewTaskTitle('');
-    setIsTranslating(false);
   };
 
   // Thêm checklist
@@ -174,36 +191,37 @@ function MainApp() {
     let textVi = textInput;
     let textJa = textInput;
 
-    if (isJa) {
-      textVi = await autoTranslateText(textInput, 'vi');
-    } else {
-      textJa = await autoTranslateText(textInput, 'ja');
-    }
-
-    setTasks(prev => prev.map(t => {
-      if (t.id === taskId) {
-        return {
-          ...t,
-          checklists: [...t.checklists, { id: Date.now(), textVi, textJa, completed: false }]
-        };
+    try {
+      if (isJa) {
+        textVi = await autoTranslateText(textInput, 'vi');
+      } else {
+        textJa = await autoTranslateText(textInput, 'ja');
       }
-      return t;
-    }));
-
-    setNewChecklistText(prev => ({ ...prev, [taskId]: '' }));
-    setIsTranslating(false);
+    } finally {
+      setTasks(prev => prev.map(t => {
+        if (t.id === taskId) {
+          return {
+            ...t,
+            checklists: [...t.checklists, { id: Date.now(), textVi, textJa, completed: false }]
+          };
+        }
+        return t;
+      }));
+      setNewChecklistText(prev => ({ ...prev, [taskId]: '' }));
+      setIsTranslating(false);
+    }
   };
 
   const handleStatusChange = (taskId, newStatus) => {
-    setTasks(tasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
   };
 
   const handleDeleteTask = (taskId) => {
-    setTasks(tasks.filter(t => t.id !== taskId));
+    setTasks(prev => prev.filter(t => t.id !== taskId));
   };
 
   const toggleChecklist = (taskId, itemId) => {
-    setTasks(tasks.map(t => {
+    setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
         return {
           ...t,
@@ -215,7 +233,7 @@ function MainApp() {
   };
 
   const deleteChecklistItem = (taskId, itemId) => {
-    setTasks(tasks.map(t => {
+    setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
         return {
           ...t,
@@ -245,12 +263,11 @@ function MainApp() {
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter(t => t.status === 'Đã Xong').length;
   const overallProgress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-
   const currentProjectObj = projects.find(p => p.id === currentView);
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col font-sans relative">
-      {/* Banner Tự Động Dịch */}
+      {/* Indicator đang dịch */}
       {isTranslating && (
         <div className="fixed top-4 right-4 z-50 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg text-xs font-semibold flex items-center gap-2 animate-bounce">
           ⚡ {isJa ? '自動翻訳中...' : 'Đang tự động dịch...'}
@@ -369,11 +386,9 @@ function MainApp() {
               {/* Bảng Checklist */}
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-gray-100">
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                      📋 {isJa ? '全チェックリスト一覧' : 'Bảng Tổng Hợp Checklist'}
-                    </h3>
-                  </div>
+                  <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                    📋 {isJa ? '全チェックリスト一覧' : 'Bảng Tổng Hợp Checklist'}
+                  </h3>
 
                   <div className="flex gap-2">
                     <button
