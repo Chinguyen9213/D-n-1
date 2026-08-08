@@ -2,7 +2,7 @@ import React, { useState, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLanguageShortcut } from './useLanguageShortcut';
 
-// Hàm helper tự động dịch bằng MyMemory Translate API miễn phí
+// Helper tự động dịch bằng API MyMemory
 async function autoTranslateText(text, targetLang) {
   if (!text || !text.trim()) return text;
   try {
@@ -26,18 +26,18 @@ function MainApp() {
 
   const isJa = i18n.language && i18n.language.startsWith('ja');
 
-  // Danh sách dự án (Có thể xóa toàn bộ)
+  // Danh sách dự án
   const [projects, setProjects] = useState([
     { id: 'p1', nameVi: 'Khai Trương Cửa Hàng', nameJa: '店舗オープン' },
     { id: 'p2', nameVi: 'Marketing & Quảng Cáo', nameJa: 'マーケティング＆広告' }
   ]);
 
-  const [currentView, setCurrentView] = useState('overview');
+  const [currentView, setCurrentView] = useState('p1');
   const [newProjectName, setNewProjectName] = useState('');
   const [checklistFilter, setChecklistFilter] = useState('all');
   const [isTranslating, setIsTranslating] = useState(false);
 
-  // Danh sách Task mẫu
+  // Mảng Task mẫu
   const [tasks, setTasks] = useState([
     {
       id: 1,
@@ -47,8 +47,8 @@ function MainApp() {
       status: 'Đang Làm',
       checklists: [
         { id: 101, textVi: 'Ký hợp đồng thuê', textJa: '賃貸契約締結', completed: true },
-        { id: 102, textVi: 'Thiết kế biển bảng', textJa: '看板デザイン', completed: false },
-        { id: 103, textVi: 'Sơn sửa lại cửa hàng', textJa: '店舗内装・塗装', completed: false }
+        { id: 102, textVi: 'Thiết kế biển bảng', textJa: '看板デザイン', completed: true },
+        { id: 103, textVi: 'Sơn sửa lại cửa hàng', textJa: '店舗内装・塗装', completed: true }
       ]
     },
     {
@@ -88,27 +88,30 @@ function MainApp() {
   const getTaskTitle = (task) => isJa ? (task.titleJa || task.titleVi) : (task.titleVi || task.titleJa);
   const getChecklistText = (item) => isJa ? (item.textJa || item.textVi) : (item.textVi || item.textJa);
 
-  // XÓA DỰ ÁN (Xóa triệt để khỏi State và chọn lại trang Tổng Quan)
+  // HÀM XÓA DỰ ÁN
   const handleDeleteProject = (projectId, e) => {
     if (e) {
-      e.stopPropagation(); // Chống kích hoạt sự kiện click chọn dự án khi bấm nút xóa
+      e.stopPropagation();
       e.preventDefault();
     }
+
+    const targetProj = projects.find(p => p.id === projectId);
+    const projName = targetProj ? getProjName(targetProj) : '';
     
     const confirmMsg = isJa 
-      ? 'このプロジェクトと全てのタスクを削除しますか？' 
-      : 'Bạn có chắc chắn muốn xóa dự án này cùng tất cả công việc liên quan?';
+      ? `「${projName}」を削除してもよろしいですか？` 
+      : `Bạn có chắc muốn xóa dự án "${projName}" cùng toàn bộ task bên trong?`;
 
     if (window.confirm(confirmMsg)) {
-      setProjects(prevProjects => prevProjects.filter(p => p.id !== projectId));
-      setTasks(prevTasks => prevTasks.filter(t => t.projectId !== projectId));
+      setProjects(prev => prev.filter(p => p.id !== projectId));
+      setTasks(prev => prev.filter(t => t.projectId !== projectId));
       if (currentView === projectId) {
         setCurrentView('overview');
       }
     }
   };
 
-  // THÊM DỰ ÁN MỚI
+  // Thêm dự án mới
   const handleAddProject = async (e) => {
     e.preventDefault();
     if (!newProjectName.trim()) return;
@@ -131,7 +134,7 @@ function MainApp() {
     setIsTranslating(false);
   };
 
-  // THÊM TASK MỚI
+  // Thêm task mới
   const handleAddTask = async (e) => {
     e.preventDefault();
     if (!newTaskTitle.trim()) return;
@@ -160,7 +163,7 @@ function MainApp() {
     setIsTranslating(false);
   };
 
-  // THÊM CHECKLIST MỚI
+  // Thêm checklist
   const handleAddChecklist = async (taskId, e) => {
     e.preventDefault();
     const text = newChecklistText[taskId];
@@ -231,7 +234,7 @@ function MainApp() {
       ...c,
       taskId: task.id,
       taskTitle: getTaskTitle(task),
-      projectName: proj ? getProjName(proj) : (isJa ? '未分類' : 'Chưa phân loại')
+      projectName: proj ? getProjName(proj) : 'Chưa phân loại'
     }));
   });
 
@@ -245,9 +248,11 @@ function MainApp() {
   const completedTasks = tasks.filter(t => t.status === 'Đã Xong').length;
   const overallProgress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
+  const currentProjectObj = projects.find(p => p.id === currentView);
+
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col font-sans relative">
-      {/* Thông báo đang tự dịch */}
+      {/* Dynamic Translation Banner */}
       {isTranslating && (
         <div className="fixed top-4 right-4 z-50 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg text-xs font-semibold flex items-center gap-2 animate-bounce">
           ⚡ {isJa ? '自動翻訳中...' : 'Đang tự động dịch...'}
@@ -296,22 +301,22 @@ function MainApp() {
               <div
                 key={p.id}
                 onClick={() => setCurrentView(p.id)}
-                className={`group w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex justify-between items-center cursor-pointer ${
+                className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex justify-between items-center cursor-pointer ${
                   currentView === p.id 
                     ? 'bg-blue-50 text-blue-600 font-semibold' 
                     : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
-                <span className="truncate pr-2">📁 {getProjName(p)}</span>
-                <div className="flex items-center gap-1.5 shrink-0">
+                <span className="truncate pr-1">📁 {getProjName(p)}</span>
+                <div className="flex items-center gap-1 shrink-0">
                   <span className="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">
                     {tasks.filter(t => t.projectId === p.id).length}
                   </span>
-                  {/* Nút Xóa Dự Án trong Sidebar */}
+                  {/* Nút xóa icon thùng rác trực tiếp ở danh mục bên trái */}
                   <button
                     onClick={(e) => handleDeleteProject(p.id, e)}
-                    className="text-red-400 hover:text-red-600 p-1 hover:bg-red-50 rounded transition-colors"
-                    title={isJa ? '削除' : 'Xóa dự án'}
+                    className="text-red-400 hover:text-red-600 p-1 hover:bg-red-100 rounded text-xs transition-colors"
+                    title={isJa ? '削除' : 'Xóa dự án này'}
                   >
                     🗑️
                   </button>
@@ -320,9 +325,7 @@ function MainApp() {
             ))}
 
             {projects.length === 0 && (
-              <p className="text-xs text-gray-400 italic p-2 text-center">
-                {isJa ? 'プロジェクトがありません' : 'Chưa có dự án nào'}
-              </p>
+              <p className="text-xs text-gray-400 italic p-2 text-center">Chưa có dự án nào</p>
             )}
           </div>
 
@@ -340,7 +343,7 @@ function MainApp() {
           </form>
         </aside>
 
-        {/* Main Content */}
+        {/* Main Area */}
         <main className="flex-1 p-6 overflow-y-auto">
           {currentView === 'overview' ? (
             <div className="space-y-6">
@@ -366,7 +369,7 @@ function MainApp() {
                 </div>
               </div>
 
-              {/* BẢNG TỔNG HỢP CHECKLIST */}
+              {/* Checklist Table */}
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-gray-100">
                   <div>
@@ -458,7 +461,7 @@ function MainApp() {
                 </div>
               </div>
 
-              {/* Danh sách các Dự Án Chi Tiết ở Trang Tổng Quan */}
+              {/* Danh sách Thư mục Overview */}
               <div className="space-y-4">
                 <h3 className="text-base font-bold text-gray-800">📁 {t('project_list_heading')}</h3>
                 {projects.map(project => {
@@ -472,7 +475,7 @@ function MainApp() {
                       <div>
                         <h4 
                           onClick={() => setCurrentView(project.id)}
-                          className="font-bold text-blue-600 hover:underline cursor-pointer text-base"
+                          className="font-bold text-blue-600 hover:underline cursor-pointer"
                         >
                           📁 {getProjName(project)}
                         </h4>
@@ -484,45 +487,40 @@ function MainApp() {
                         <span className="text-xs font-semibold text-gray-600">{pPercent}%</span>
                         <button 
                           onClick={() => setCurrentView(project.id)}
-                          className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 py-1.5 rounded-lg font-medium"
+                          className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg font-medium"
                         >
                           {t('open_kanban')}
                         </button>
-                        {/* Nút Xóa Dự Án ở Card Overview */}
                         <button 
                           onClick={(e) => handleDeleteProject(project.id, e)}
-                          className="text-xs text-red-500 hover:bg-red-50 px-2.5 py-1.5 rounded-lg font-medium border border-red-200 flex items-center gap-1 transition-colors"
-                          title={isJa ? '削除' : 'Xóa dự án'}
+                          className="text-xs text-red-500 hover:bg-red-50 px-2.5 py-1.5 rounded-lg font-medium border border-red-200"
                         >
-                          🗑️ {isJa ? '削除' : 'Xóa'}
+                          🗑️ Xóa
                         </button>
                       </div>
                     </div>
                   );
                 })}
-
-                {projects.length === 0 && (
-                  <div className="bg-white rounded-xl border border-dashed border-gray-300 p-8 text-center text-gray-400 text-sm">
-                    {isJa ? 'プロジェクトがありません。新しいプロジェクトを追加してください。' : 'Chưa có dự án nào. Vui lòng tạo dự án mới ở góc dưới menu bên trái.'}
-                  </div>
-                )}
               </div>
             </div>
           ) : (
-            /* VIEW DỰ ÁN CHI TIẾT (KANBAN) */
+            /* VIEW DỰ ÁN CHI TIẾT (Trang bạn đang mở trong ảnh) */
             <div>
               <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4 border-b border-gray-200 pb-4">
                 <div className="flex items-center gap-4">
-                  <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                    📂 {projects.find(p => p.id === currentView) ? getProjName(projects.find(p => p.id === currentView)) : 'Dự Án'}
+                  <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                    📁 {currentProjectObj ? getProjName(currentProjectObj) : 'Dự Án'}
                   </h2>
-                  {/* Nút Xóa Dự Án trong View Chi Tiết */}
-                  <button
-                    onClick={(e) => handleDeleteProject(currentView, e)}
-                    className="text-xs text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg border border-red-200 font-medium flex items-center gap-1 transition-colors"
-                  >
-                    🗑️ {isJa ? 'プロジェクトを削除' : 'Xóa dự án này'}
-                  </button>
+
+                  {/* NÚT XÓA DỰ ÁN TRỰC TIẾP TẠI TIÊU ĐỀ */}
+                  {currentProjectObj && (
+                    <button
+                      onClick={(e) => handleDeleteProject(currentProjectObj.id, e)}
+                      className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1 transition-colors shadow-sm cursor-pointer"
+                    >
+                      🗑️ Xóa dự án này
+                    </button>
+                  )}
                 </div>
 
                 <form onSubmit={handleAddTask} className="flex gap-2">
@@ -534,11 +532,12 @@ function MainApp() {
                     className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 w-64 shadow-sm"
                   />
                   <button type="submit" disabled={isTranslating} className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow-sm disabled:opacity-50">
-                    {t('add_task_btn')}
+                    + Tạo Task Mới
                   </button>
                 </form>
               </div>
 
+              {/* BẢNG KANBAN */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 align-top">
                 {columns.map(status => {
                   const statusTasks = tasks.filter(t => t.projectId === currentView && t.status === status);
@@ -549,7 +548,7 @@ function MainApp() {
                           {status === 'Cần Làm' && '🟡'}
                           {status === 'Đang Làm' && '🔵'}
                           {status === 'Đã Xong' && '🟢'}
-                          {status === 'Đã Xong' ? t('status_done') : status === 'Đang Làm' ? t('status_pending') : t('status_todo')}
+                          {status}
                         </span>
                         <span className="bg-white text-gray-600 text-xs px-2 py-0.5 rounded-full font-medium border border-gray-200 shadow-sm">
                           {statusTasks.length}
@@ -565,13 +564,13 @@ function MainApp() {
                           <div key={task.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
                             <div className="flex justify-between items-start">
                               <h3 className="font-semibold text-gray-800 text-sm">{getTaskTitle(task)}</h3>
-                              <button onClick={() => handleDeleteTask(task.id)} className="text-xs text-red-400 hover:text-red-600">{t('delete_btn')}</button>
+                              <button onClick={() => handleDeleteTask(task.id)} className="text-xs text-red-400 hover:text-red-600">Xóa</button>
                             </div>
 
                             {totalItems > 0 && (
                               <div className="space-y-1">
                                 <div className="flex justify-between text-xs text-gray-500">
-                                  <span>{t('checklist_progress')}</span>
+                                  <span>Tiến độ Checklist</span>
                                   <span>{completedItems}/{totalItems} ({progressPercent}%)</span>
                                 </div>
                                 <div className="w-full bg-gray-200 h-1.5 rounded-full overflow-hidden">
@@ -610,26 +609,26 @@ function MainApp() {
                             <form onSubmit={(e) => handleAddChecklist(task.id, e)} className="flex gap-1 pt-1">
                               <input
                                 type="text"
-                                placeholder={t('add_subitem_placeholder')}
+                                placeholder="+ Thêm mục nhỏ..."
                                 value={newChecklistText[task.id] || ''}
                                 onChange={(e) => setNewChecklistText({ ...newChecklistText, [task.id]: e.target.value })}
                                 className="text-xs border border-gray-200 rounded px-2 py-1 flex-1 focus:outline-none focus:border-blue-400"
                               />
                               <button type="submit" disabled={isTranslating} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-1 rounded font-medium disabled:opacity-50">
-                                {t('add_btn')}
+                                Thêm
                               </button>
                             </form>
 
                             <div className="pt-2 border-t border-gray-100 flex justify-between items-center">
-                              <span className="text-[11px] text-gray-400">{t('status_label')}</span>
+                              <span className="text-[11px] text-gray-400">Trạng thái</span>
                               <select
                                 value={task.status}
                                 onChange={(e) => handleStatusChange(task.id, e.target.value)}
                                 className="text-xs border border-gray-200 rounded px-2 py-1 bg-gray-50 text-gray-600 focus:outline-none"
                               >
-                                <option value="Cần Làm">{t('status_todo')}</option>
-                                <option value="Đang Làm">{t('status_pending')}</option>
-                                <option value="Đã Xong">{t('status_done')}</option>
+                                <option value="Cần Làm">Cần Làm</option>
+                                <option value="Đang Làm">Đang Làm</option>
+                                <option value="Đã Xong">Đã Xong</option>
                               </select>
                             </div>
                           </div>
@@ -638,7 +637,7 @@ function MainApp() {
 
                       {statusTasks.length === 0 && (
                         <div className="text-center py-6 border-2 border-dashed border-gray-200 rounded-lg text-xs text-gray-400">
-                          {t('empty_task_col')}
+                          Chưa có công việc
                         </div>
                       )}
                     </div>
