@@ -2,12 +2,15 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLanguageShortcut } from './useLanguageShortcut';
 
+// Thay bằng URL Backend Render của bạn sau khi deploy
+const API_URL = 'https://kanban-backend-xxxx.onrender.com/api';
+
 // Helper dịch có Timeout (không lo đơ app nếu API lỗi)
 async function autoTranslateText(text, targetLang) {
   if (!text || !text.trim()) return text;
   
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 3000); // Hạn giờ 3 giây
+  const timeoutId = setTimeout(() => controller.abort(), 3000);
 
   try {
     const langPair = targetLang === 'ja' ? 'vi|ja' : 'ja|vi';
@@ -26,7 +29,101 @@ async function autoTranslateText(text, targetLang) {
   return text;
 }
 
-function MainApp() {
+// -------------------------------------------------------------
+// FORM ĐĂNG NHẬP / ĐĂNG KÝ (Mới bổ sung)
+// -------------------------------------------------------------
+function AuthForm({ onLoginSuccess }) {
+  const [isRegister, setIsRegister] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [message, setMessage] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setMessage('');
+    const endpoint = isRegister ? '/register' : '/login';
+
+    try {
+      const res = await fetch(`${API_URL}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.message || 'Có lỗi xảy ra');
+
+      if (isRegister) {
+        setMessage('Đăng ký thành công! Hãy đăng nhập.');
+        setIsRegister(false);
+      } else {
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('username', data.username);
+        onLoginSuccess(data.username);
+      }
+    } catch (err) {
+      setMessage(err.message);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+      <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md border border-gray-200">
+        <h2 className="text-2xl font-bold text-center text-gray-800 mb-6">
+          {isRegister ? '📝 Đăng ký Tài khoản' : '🔑 Đăng nhập Kanban'}
+        </h2>
+        {message && (
+          <div className={`p-3 rounded-lg text-xs font-semibold mb-4 text-center ${
+            message.includes('thành công') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+          }`}>
+            {message}
+          </div>
+        )}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Tên tài khoản</label>
+            <input 
+              type="text" 
+              required
+              value={username} 
+              onChange={(e) => setUsername(e.target.value)} 
+              className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:outline-none focus:border-blue-500"
+              placeholder="Nhập username"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Mật khẩu</label>
+            <input 
+              type="password" 
+              required
+              value={password} 
+              onChange={(e) => setPassword(e.target.value)} 
+              className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:outline-none focus:border-blue-500"
+              placeholder="Nhập mật khẩu"
+            />
+          </div>
+          <button 
+            type="submit" 
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors shadow-sm"
+          >
+            {isRegister ? 'Tạo Tài Khoản' : 'Đăng Nhập'}
+          </button>
+        </form>
+        <p 
+          onClick={() => setIsRegister(!isRegister)} 
+          className="mt-4 text-center text-xs text-blue-600 hover:underline cursor-pointer font-medium"
+        >
+          {isRegister ? 'Đã có tài khoản? Đăng nhập ngay' : 'Chưa có tài khoản? Đăng ký ngay'}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// -------------------------------------------------------------
+// GIAO DIỆN CHÍNH KANBAN APP (Giữ nguyên toàn bộ logic cũ)
+// -------------------------------------------------------------
+function MainApp({ user, onLogout }) {
   const { t, i18n } = useTranslation();
   useLanguageShortcut();
 
@@ -76,7 +173,7 @@ function MainApp() {
     ];
   });
 
-  // 2. TỰ ĐỘNG LƯU VÀO LOCALSTORAGE MỖI KHI DỮ LIỆU THAY ĐỔI
+  // 2. TỰ ĐỘNG LƯU VÀO LOCALSTORAGE
   useEffect(() => {
     localStorage.setItem('kanban_projects', JSON.stringify(projects));
   }, [projects]);
@@ -102,7 +199,6 @@ function MainApp() {
   const getTaskTitle = (task) => isJa ? (task.titleJa || task.titleVi) : (task.titleVi || task.titleJa);
   const getChecklistText = (item) => isJa ? (item.textJa || item.textVi) : (item.textVi || item.textJa);
 
-  // Xóa dự án
   const handleDeleteProject = (projectId, e) => {
     if (e) {
       e.stopPropagation();
@@ -124,7 +220,6 @@ function MainApp() {
     }
   };
 
-  // Thêm dự án mới
   const handleAddProject = async (e) => {
     e.preventDefault();
     if (!newProjectName.trim()) return;
@@ -149,7 +244,6 @@ function MainApp() {
     }
   };
 
-  // Thêm task mới
   const handleAddTask = async (e) => {
     e.preventDefault();
     if (!newTaskTitle.trim()) return;
@@ -180,7 +274,6 @@ function MainApp() {
     }
   };
 
-  // Thêm checklist
   const handleAddChecklist = async (taskId, e) => {
     e.preventDefault();
     const text = newChecklistText[taskId];
@@ -281,9 +374,15 @@ function MainApp() {
           <p className="text-sm text-gray-500">{isJa ? 'タスク追跡システム＆チェックリスト総合' : 'Hệ thống theo dõi công việc & Bảng tổng hợp Checklist'}</p>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-xs bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg border border-gray-200 hidden sm:inline-block">
-            💡 {isJa ? 'Alt + L キーで言語を素早く切り替えられます' : 'Mẹo: Bấm Alt + L để chuyển ngôn ngữ nhanh'}
+          <span className="text-xs bg-gray-50 border border-gray-200 text-gray-700 px-3 py-1.5 rounded-lg">
+            👤 {user}
           </span>
+          <button
+            onClick={onLogout}
+            className="text-xs text-red-600 hover:bg-red-50 border border-red-200 px-3 py-1.5 rounded-lg font-semibold transition-colors"
+          >
+            Đăng xuất
+          </button>
           <button
             onClick={toggleLanguage}
             className="px-3 py-1.5 text-sm font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50 shadow-sm transition-colors"
@@ -666,10 +765,33 @@ function MainApp() {
   );
 }
 
+// -------------------------------------------------------------
+// MAIN ENTRY POINT (Điều hướng Đăng nhập / App chính)
+// -------------------------------------------------------------
 export default function App() {
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const savedUser = localStorage.getItem('username');
+    const token = localStorage.getItem('token');
+    if (savedUser && token) {
+      setUser(savedUser);
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('username');
+    setUser(null);
+  };
+
   return (
     <Suspense fallback={<div className="p-6 text-center text-gray-500">Loading...</div>}>
-      <MainApp />
+      {user ? (
+        <MainApp user={user} onLogout={handleLogout} />
+      ) : (
+        <AuthForm onLoginSuccess={(username) => setUser(username)} />
+      )}
     </Suspense>
   );
 }
