@@ -71,7 +71,7 @@ function MainApp({ user, onLogout }) {
   const [newTaskPriority, setNewTaskPriority] = useState('MEDIUM');
   const [newChecklistText, setNewChecklistText] = useState({});
 
-  // State nhập tài liệu đính kèm
+  // State nhập tài liệu đính kèm (URL)
   const [attNameInputs, setAttNameInputs] = useState({});
   const [attUrlInputs, setAttUrlInputs] = useState({});
 
@@ -144,7 +144,6 @@ function MainApp({ user, onLogout }) {
     setNewTaskPriority('MEDIUM');
   };
 
-  // Lưu tên Task sau khi chỉnh sửa trực tiếp
   const handleSaveTaskTitle = (taskId) => {
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
@@ -159,8 +158,8 @@ function MainApp({ user, onLogout }) {
     setEditingTaskId(null);
   };
 
-  // Thêm file / tài liệu đính kèm
-  const handleAddAttachment = (taskId) => {
+  // Thêm tài liệu bằng URL
+  const handleAddAttachmentUrl = (taskId) => {
     const name = attNameInputs[taskId];
     const url = attUrlInputs[taskId];
     if (!name || !name.trim() || !url || !url.trim()) {
@@ -170,7 +169,7 @@ function MainApp({ user, onLogout }) {
 
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
-        const newAtt = { id: 'att_' + Date.now(), name: name.trim(), url: url.trim() };
+        const newAtt = { id: 'att_' + Date.now(), type: 'url', name: name.trim(), url: url.trim() };
         return { ...t, attachments: [...(t.attachments || []), newAtt] };
       }
       return t;
@@ -178,6 +177,31 @@ function MainApp({ user, onLogout }) {
 
     setAttNameInputs(prev => ({ ...prev, [taskId]: '' }));
     setAttUrlInputs(prev => ({ ...prev, [taskId]: '' }));
+  };
+
+  // Tải file trực tiếp từ máy tính lên
+  const handleFileUpload = (taskId, e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (uploadEvent) => {
+      const fileDataUrl = uploadEvent.target.result;
+      setTasks(prev => prev.map(t => {
+        if (t.id === taskId) {
+          const newAtt = { 
+            id: 'file_' + Date.now(), 
+            type: 'file', 
+            name: file.name, 
+            url: fileDataUrl 
+          };
+          return { ...t, attachments: [...(t.attachments || []), newAtt] };
+        }
+        return t;
+      }));
+    };
+    reader.readAsDataURL(file);
+    e.target.value = null; // Reset input file
   };
 
   const handleDeleteAttachment = (taskId, attId) => {
@@ -616,28 +640,43 @@ function MainApp({ user, onLogout }) {
                                 <button type="submit" className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs px-2.5 py-1.5 rounded font-medium">{isJa ? '追加' : 'Thêm'}</button>
                               </form>
 
-                              {/* QUẢN LÝ TÀI LIỆU / LINK */}
-                              <div className="pt-2 border-t border-gray-100 space-y-1.5">
-                                <p className="text-[11px] font-bold text-gray-600">📎 {isJa ? '添付資料' : 'Tài liệu / Link đính kèm'}</p>
+                              {/* QUẢN LÝ TÀI LIỆU SONG SONG: LINK & TẢI FILE TỪ MÁY */}
+                              <div className="pt-2 border-t border-gray-100 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <p className="text-[11px] font-bold text-gray-600">📎 {isJa ? '添付資料' : 'Tài liệu đính kèm'}</p>
+                                  <label className="cursor-pointer bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2 py-0.5 rounded shadow-sm">
+                                    📁 {isJa ? 'ファイルアップロード' : '+ Tải file lên'}
+                                    <input type="file" onChange={(e) => handleFileUpload(task.id, e)} className="hidden" />
+                                  </label>
+                                </div>
+
                                 {task.attachments && task.attachments.length > 0 ? (
                                   <div className="space-y-1">
                                     {task.attachments.map(att => (
                                       <div key={att.id} className="flex items-center justify-between text-xs bg-gray-50 px-2 py-1 rounded border border-gray-100 group">
-                                        <a href={att.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline truncate pr-2 max-w-[170px]" title={att.name}>
-                                          📄 {att.name}
+                                        <a 
+                                          href={att.url} 
+                                          target="_blank" 
+                                          rel="noreferrer" 
+                                          download={att.type === 'file' ? att.name : undefined}
+                                          className="text-blue-600 hover:underline truncate pr-2 max-w-[170px]" 
+                                          title={att.name}
+                                        >
+                                          {att.type === 'file' ? '💾 ' : '📄 '} {att.name}
                                         </a>
                                         <button type="button" onClick={() => handleDeleteAttachment(task.id, att.id)} className="text-gray-400 hover:text-red-500 text-[10px]">✕</button>
                                       </div>
                                     ))}
                                   </div>
                                 ) : (
-                                  <p className="text-[10px] text-gray-400 italic">{isJa ? '資料なし' : 'Chưa có file nào'}</p>
+                                  <p className="text-[10px] text-gray-400 italic">{isJa ? '資料なし' : 'Chưa có file hay link nào'}</p>
                                 )}
 
-                                <div className="space-y-1 pt-1">
+                                {/* Form dán link URL nhanh */}
+                                <div className="space-y-1 pt-1 border-t border-dashed border-gray-200">
                                   <input 
                                     type="text" 
-                                    placeholder={isJa ? '資料名 (例: 契約書)' : 'Tên tài liệu (VD: Hợp đồng)'} 
+                                    placeholder={isJa ? '資料名 (例: 契約書)' : 'Tên link (VD: Tài liệu thiết kế)'} 
                                     value={attNameInputs[task.id] || ''} 
                                     onChange={(e) => setAttNameInputs({ ...attNameInputs, [task.id]: e.target.value })} 
                                     className="w-full text-[11px] border border-gray-200 rounded px-2 py-1 focus:outline-none" 
@@ -652,10 +691,10 @@ function MainApp({ user, onLogout }) {
                                     />
                                     <button 
                                       type="button" 
-                                      onClick={() => handleAddAttachment(task.id)}
+                                      onClick={() => handleAddAttachmentUrl(task.id)}
                                       className="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] px-3 py-1 rounded font-bold shrink-0 shadow-sm"
                                     >
-                                      +
+                                      + Link
                                     </button>
                                   </div>
                                 </div>
