@@ -29,11 +29,29 @@ function MainApp({ user, onLogout }) {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        return parsed.map(t => ({
-          ...t,
-          priority: t.priority || 'MEDIUM',
-          attachments: t.attachments || []
-        }));
+        return parsed.map(t => {
+          // Chuẩn hóa và tự động sửa các task cũ bị trùng hoặc thiếu dữ liệu dịch
+          let tVi = t.titleVi || t.title || 'Công việc chưa đặt tên';
+          let tJa = t.titleJa || t.title || tVi;
+          
+          // Nếu lỡ bị lưu chung một chuỗi giống hệt nhau (ví dụ: "Xây dựng quy trình SOP (xây dựng quy trình SOP)")
+          if (tVi.includes('(') && tVi.endsWith(')')) {
+            tVi = tVi.split('(')[0].trim();
+          }
+
+          return {
+            ...t,
+            titleVi: tVi,
+            titleJa: tJa !== tVi ? tJa : tVi,
+            priority: t.priority || 'MEDIUM',
+            attachments: t.attachments || [],
+            checklists: (t.checklists || []).map(c => ({
+              ...c,
+              textVi: c.textVi || c.text || 'Mục con',
+              textJa: c.textJa || c.text || (c.textVi || c.text || 'Mục con')
+            }))
+          };
+        });
       } catch (e) { console.error(e); }
     }
     return [
@@ -69,7 +87,8 @@ function MainApp({ user, onLogout }) {
   const [newTaskAssignee, setNewTaskAssignee] = useState('');
   const [newTaskDueDate, setNewTaskDueDate] = useState('');
   const [newTaskPriority, setNewTaskPriority] = useState('MEDIUM');
-  const [newChecklistText, setNewChecklistText] = useState({});
+  const [newChecklistTextVi, setNewChecklistTextVi] = useState({});
+  const [newChecklistTextJa, setNewChecklistTextJa] = useState({});
 
   // State nhập tài liệu đính kèm (URL)
   const [attNameInputs, setAttNameInputs] = useState({});
@@ -201,7 +220,7 @@ function MainApp({ user, onLogout }) {
       }));
     };
     reader.readAsDataURL(file);
-    e.target.value = null; // Reset input file
+    e.target.value = null;
   };
 
   const handleDeleteAttachment = (taskId, attId) => {
@@ -215,18 +234,21 @@ function MainApp({ user, onLogout }) {
 
   const handleAddChecklist = (taskId, e) => {
     e.preventDefault();
-    const text = newChecklistText[taskId];
-    if (!text || !text.trim()) return;
-    const textVi = text.trim();
-    const textJa = text.trim();
+    const textVi = (newChecklistTextVi[taskId] || '').trim();
+    const textJa = (newChecklistTextJa[taskId] || '').trim();
+    if (!textVi && !textJa) return;
+
+    const finalVi = textVi || textJa;
+    const finalJa = textJa || textVi;
 
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
-        return { ...t, checklists: [...t.checklists, { id: Date.now(), textVi, textJa, completed: false }] };
+        return { ...t, checklists: [...t.checklists, { id: Date.now(), textVi: finalVi, textJa: finalJa, completed: false }] };
       }
       return t;
     }));
-    setNewChecklistText(prev => ({ ...prev, [taskId]: '' }));
+    setNewChecklistTextVi(prev => ({ ...prev, [taskId]: '' }));
+    setNewChecklistTextJa(prev => ({ ...prev, [taskId]: '' }));
   };
 
   const handleStatusChange = (taskId, newStatus) => {
@@ -635,9 +657,26 @@ function MainApp({ user, onLogout }) {
                                 ))}
                               </div>
 
-                              <form onSubmit={(e) => handleAddChecklist(task.id, e)} className="flex gap-1 pt-1">
-                                <input type="text" placeholder={isJa ? '+ 追加...' : '+ Thêm mục con...'} value={newChecklistText[task.id] || ''} onChange={(e) => setNewChecklistText({ ...newChecklistText, [task.id]: e.target.value })} className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none" />
-                                <button type="submit" className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs px-2.5 py-1.5 rounded font-medium">{isJa ? '追加' : 'Thêm'}</button>
+                              <form onSubmit={(e) => handleAddChecklist(task.id, e)} className="space-y-1 pt-1">
+                                <div className="grid grid-cols-2 gap-1">
+                                  <input 
+                                    type="text" 
+                                    placeholder={isJa ? '小項目 (Tiếng Việt)' : '+ Mục con (Tiếng Việt)'} 
+                                    value={newChecklistTextVi[task.id] || ''} 
+                                    onChange={(e) => setNewChecklistTextVi({ ...newChecklistTextVi, [task.id]: e.target.value })} 
+                                    className="text-[11px] border border-gray-200 rounded px-2 py-1 focus:outline-none" 
+                                  />
+                                  <input 
+                                    type="text" 
+                                    placeholder={isJa ? '小項目 (日本語)' : '+ Mục con (Tiếng Nhật)'} 
+                                    value={newChecklistTextJa[task.id] || ''} 
+                                    onChange={(e) => setNewChecklistTextJa({ ...newChecklistTextJa, [task.id]: e.target.value })} 
+                                    className="text-[11px] border border-gray-200 rounded px-2 py-1 focus:outline-none" 
+                                  />
+                                </div>
+                                <div className="flex justify-end">
+                                  <button type="submit" className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] px-3 py-1 rounded font-medium">{isJa ? '追加' : 'Thêm mục con'}</button>
+                                </div>
                               </form>
 
                               {/* QUẢN LÝ TÀI LIỆU SONG SONG: LINK & TẢI FILE TỪ MÁY */}
