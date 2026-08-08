@@ -71,9 +71,7 @@ function MainApp({ user, onLogout }) {
           { id: 101, textVi: 'Ký hợp đồng thuê', textJa: '賃貸契約締結', completed: true },
           { id: 102, textVi: 'Thiết kế biển bảng', textJa: '看板デザイン', completed: false }
         ],
-        attachments: [
-          { id: 'a1', name: 'Hop_dong_thue_mat_bang.pdf', url: 'https://example.com' }
-        ]
+        attachments: []
       }
     ];
   });
@@ -90,10 +88,6 @@ function MainApp({ user, onLogout }) {
   const [newTaskDueDate, setNewTaskDueDate] = useState('');
   const [newTaskPriority, setNewTaskPriority] = useState('MEDIUM');
   const [newChecklistText, setNewChecklistText] = useState({});
-
-  // State lưu input tài liệu tạm thời cho từng Task ID
-  const [attNameInputs, setAttNameInputs] = useState({});
-  const [attUrlInputs, setAttUrlInputs] = useState({});
 
   // State chỉnh sửa tên Task
   const [editingTaskId, setEditingTaskId] = useState(null);
@@ -193,26 +187,24 @@ function MainApp({ user, onLogout }) {
     }
   };
 
-  // Hàm Thêm File Đính Kèm chạy chuẩn xác bằng sự kiện click trực tiếp
-  const handleAddAttachment = (taskId) => {
-    const name = attNameInputs[taskId];
-    const url = attUrlInputs[taskId];
-    if (!name || !name.trim() || !url || !url.trim()) {
-      alert(isJa ? '資料名とURLの両方を入力してください。' : 'Vui lòng nhập đầy đủ tên tài liệu và đường dẫn URL!');
-      return;
-    }
+  // Xử lý chọn file từ máy tính và tải lên trực tiếp
+  const handleFileUpload = (taskId, e) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    const fileUrl = URL.createObjectURL(file); // Tạo đường dẫn tạm thời từ file trong máy
 
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
-        const newAtt = { id: 'att_' + Date.now(), name: name.trim(), url: url.trim() };
+        const newAtt = { id: 'att_' + Date.now(), name: file.name, url: fileUrl };
         return { ...t, attachments: [...(t.attachments || []), newAtt] };
       }
       return t;
     }));
 
-    // Reset input của task đó
-    setAttNameInputs(prev => ({ ...prev, [taskId]: '' }));
-    setAttUrlInputs(prev => ({ ...prev, [taskId]: '' }));
+    // Reset input file để có thể chọn lại cùng 1 file nếu cần
+    e.target.value = '';
   };
 
   const handleDeleteAttachment = (taskId, attId) => {
@@ -633,14 +625,25 @@ function MainApp({ user, onLogout }) {
                                 <button type="submit" disabled={isTranslating} className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs px-2.5 py-1.5 rounded font-medium">{isJa ? '追加' : 'Thêm'}</button>
                               </form>
 
-                              {/* QUẢN LÝ TÀI LIỆU & FILE ĐÍNH KÈM */}
+                              {/* CHỌN FILE TỪ MÁY TÍNH LÊN TASK */}
                               <div className="pt-2 border-t border-gray-100 space-y-1.5">
-                                <p className="text-[11px] font-bold text-gray-600">📎 {isJa ? '添付資料' : 'Tài liệu / File đính kèm'}</p>
+                                <div className="flex items-center justify-between">
+                                  <p className="text-[11px] font-bold text-gray-600">📎 {isJa ? '添付ファイル' : 'Tải file từ máy tính'}</p>
+                                  <label className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] px-2.5 py-1 rounded font-bold cursor-pointer shadow-sm">
+                                    {isJa ? '+ ファイル選択' : '+ Chọn file'}
+                                    <input 
+                                      type="file" 
+                                      onChange={(e) => handleFileUpload(task.id, e)} 
+                                      className="hidden" 
+                                    />
+                                  </label>
+                                </div>
+
                                 {task.attachments && task.attachments.length > 0 ? (
-                                  <div className="space-y-1">
+                                  <div className="space-y-1 pt-1">
                                     {task.attachments.map(att => (
                                       <div key={att.id} className="flex items-center justify-between text-xs bg-gray-50 px-2 py-1 rounded border border-gray-100 group">
-                                        <a href={att.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline truncate pr-2 max-w-[170px]" title={att.name}>
+                                        <a href={att.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline truncate pr-2 max-w-[190px]" title={att.name}>
                                           📄 {att.name}
                                         </a>
                                         <button type="button" onClick={() => handleDeleteAttachment(task.id, att.id)} className="text-gray-400 hover:text-red-500 text-[10px]">✕</button>
@@ -648,34 +651,8 @@ function MainApp({ user, onLogout }) {
                                     ))}
                                   </div>
                                 ) : (
-                                  <p className="text-[10px] text-gray-400 italic">{isJa ? '資料なし' : 'Chưa có file nào'}</p>
+                                  <p className="text-[10px] text-gray-400 italic">{isJa ? 'ファイルなし' : 'Chưa có file đính kèm'}</p>
                                 )}
-
-                                <div className="space-y-1 pt-1">
-                                  <input 
-                                    type="text" 
-                                    placeholder={isJa ? '資料名 (例: 契約書)' : 'Tên tài liệu (VD: Hợp đồng)'} 
-                                    value={attNameInputs[task.id] || ''} 
-                                    onChange={(e) => setAttNameInputs({ ...attNameInputs, [task.id]: e.target.value })} 
-                                    className="w-full text-[11px] border border-gray-200 rounded px-2 py-1 focus:outline-none" 
-                                  />
-                                  <div className="flex gap-1">
-                                    <input 
-                                      type="text" 
-                                      placeholder="URL (https://...)" 
-                                      value={attUrlInputs[task.id] || ''} 
-                                      onChange={(e) => setAttUrlInputs({ ...attUrlInputs, [task.id]: e.target.value })} 
-                                      className="w-full text-[11px] border border-gray-200 rounded px-2 py-1 focus:outline-none" 
-                                    />
-                                    <button 
-                                      type="button" 
-                                      onClick={() => handleAddAttachment(task.id)}
-                                      className="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] px-3 py-1 rounded font-bold shrink-0 cursor-pointer shadow-sm"
-                                    >
-                                      +
-                                    </button>
-                                  </div>
-                                </div>
                               </div>
 
                               <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
