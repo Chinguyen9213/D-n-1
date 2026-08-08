@@ -66,6 +66,40 @@ function MainApp({ user, onLogout }) {
   useEffect(() => { localStorage.setItem('kanban_projects', JSON.stringify(projects)); }, [projects]);
   useEffect(() => { localStorage.setItem('kanban_tasks', JSON.stringify(tasks)); }, [tasks]);
 
+  // --- TÍNH NĂNG BACKUP & RESTORE DỮ LIỆU ---
+  const exportData = () => {
+    const data = JSON.stringify({ projects, tasks }, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `kanban_backup_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+  };
+
+  const importData = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const imported = JSON.parse(event.target.result);
+        if (imported.projects && imported.tasks) {
+          setProjects(imported.projects);
+          setTasks(imported.tasks);
+          alert(isJa ? 'データを正常に復元しました！' : 'Đã khôi phục dữ liệu thành công!');
+        } else {
+          alert(isJa ? 'エラー: ファイル形式が正しくありません。' : 'Lỗi: Cấu trúc file dữ liệu không đúng!');
+        }
+      } catch (err) { 
+        alert(isJa ? 'エラー: ファイルを解析できません。' : 'Lỗi: Không thể đọc file JSON!'); 
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = null; // Reset input file
+  };
+  // ------------------------------------------
+
   const [currentView, setCurrentView] = useState('p1');
   const [newProjectNameVi, setNewProjectNameVi] = useState('');
   const [newProjectNameJa, setNewProjectNameJa] = useState('');
@@ -79,14 +113,11 @@ function MainApp({ user, onLogout }) {
   const [newTaskPriority, setNewTaskPriority] = useState('MEDIUM');
   const [newChecklistTextVi, setNewChecklistTextVi] = useState({});
   const [newChecklistTextJa, setNewChecklistTextJa] = useState({});
-
   const [attNameInputs, setAttNameInputs] = useState({});
   const [attUrlInputs, setAttUrlInputs] = useState({});
-
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editTitleVi, setEditTitleVi] = useState('');
   const [editTitleJa, setEditTitleJa] = useState('');
-
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAssignee, setFilterAssignee] = useState('all');
   const [filterPriority, setFilterPriority] = useState('all');
@@ -130,7 +161,6 @@ function MainApp({ user, onLogout }) {
     if (!newTaskTitleVi.trim() && !newTaskTitleJa.trim()) return;
     const titleVi = newTaskTitleVi.trim() || newTaskTitleJa.trim();
     const titleJa = newTaskTitleJa.trim() || newTaskTitleVi.trim();
-
     const newTask = {
       id: Date.now(),
       projectId: currentView,
@@ -172,7 +202,6 @@ function MainApp({ user, onLogout }) {
       alert(isJa ? '資料名とURLの両方を入力してください。' : 'Vui lòng nhập đầy đủ tên tài liệu và URL!');
       return;
     }
-
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
         const newAtt = { id: 'att_' + Date.now(), type: 'url', name: name.trim(), url: url.trim() };
@@ -180,7 +209,6 @@ function MainApp({ user, onLogout }) {
       }
       return t;
     }));
-
     setAttNameInputs(prev => ({ ...prev, [taskId]: '' }));
     setAttUrlInputs(prev => ({ ...prev, [taskId]: '' }));
   };
@@ -188,7 +216,6 @@ function MainApp({ user, onLogout }) {
   const handleFileUpload = (taskId, e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (uploadEvent) => {
       const fileDataUrl = uploadEvent.target.result;
@@ -218,10 +245,8 @@ function MainApp({ user, onLogout }) {
     const textVi = (newChecklistTextVi[taskId] || '').trim();
     const textJa = (newChecklistTextJa[taskId] || '').trim();
     if (!textVi && !textJa) return;
-
     const finalVi = textVi || textJa;
     const finalJa = textJa || textVi;
-
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
         return { ...t, checklists: [...t.checklists, { id: Date.now(), textVi: finalVi, textJa: finalJa, completed: false }] };
@@ -275,16 +300,10 @@ function MainApp({ user, onLogout }) {
     }));
   });
 
-  const filteredChecklist = allChecklistItems.filter(item => {
-    if (checklistFilter === 'pending') return !item.completed;
-    if (checklistFilter === 'completed') return item.completed;
-    return true;
-  });
-
   const totalChecklistsCount = tasks.reduce((acc, t) => acc + t.checklists.length, 0);
   const completedChecklistsCount = tasks.reduce((acc, t) => acc + t.checklists.filter(c => c.completed).length, 0);
   const overallProgress = totalChecklistsCount > 0 ? Math.round((completedChecklistsCount / totalChecklistsCount) * 100) : 0;
-
+  
   const currentProjectObj = projects.find(p => p.id === currentView);
   const currentProjectTasks = tasks.filter(t => t.projectId === currentView);
   
@@ -306,7 +325,23 @@ function MainApp({ user, onLogout }) {
           <h1 className="text-2xl font-bold text-gray-800">{isJa ? 'プロジェクト進捗レポート' : 'Báo Cáo Tiến Độ Dự Án'}</h1>
           <p className="text-sm text-gray-500">{isJa ? 'タスク追跡システム＆チェックリスト総合' : 'Hệ thống theo dõi công việc nâng cao'}</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          {/* NÚT BACKUP & RESTORE */}
+          <button 
+            onClick={exportData} 
+            className="text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg font-bold shadow-sm transition"
+            title="Lưu file backup dữ liệu về máy"
+          >
+            📥 Backup
+          </button>
+          <label 
+            className="text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-lg font-bold shadow-sm cursor-pointer transition"
+            title="Khôi phục dữ liệu từ file backup"
+          >
+            📤 Restore
+            <input type="file" accept=".json" onChange={importData} className="hidden" />
+          </label>
+
           <span className="text-xs bg-gray-50 border border-gray-200 text-gray-700 px-3 py-1.5 rounded-lg">👤 {user}</span>
           <button onClick={onLogout} className="text-xs text-red-600 hover:bg-red-50 border border-red-200 px-3 py-1.5 rounded-lg font-semibold">Đăng xuất</button>
           <button onClick={toggleLanguage} className="px-3 py-1.5 text-sm font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50 shadow-sm">
@@ -346,7 +381,6 @@ function MainApp({ user, onLogout }) {
               </div>
             ))}
           </div>
-
           <form onSubmit={handleAddProject} className="mt-4 pt-4 border-t border-gray-200 space-y-2">
             <input
               type="text"
@@ -388,7 +422,6 @@ function MainApp({ user, onLogout }) {
                   <p className="text-2xl font-bold text-green-600 mt-1">{overallProgress}%</p>
                 </div>
               </div>
-
               <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-bold text-gray-800">🚀 {isJa ? '全体チェックリスト進捗バー' : 'Thanh Tiến Độ Tổng Quan Toàn Bộ Dự Án'}</span>
@@ -621,7 +654,6 @@ function MainApp({ user, onLogout }) {
                                     <input type="file" onChange={(e) => handleFileUpload(task.id, e)} className="hidden" />
                                   </label>
                                 </div>
-
                                 {task.attachments && task.attachments.length > 0 ? (
                                   <div className="space-y-1">
                                     {task.attachments.map(att => (
@@ -636,7 +668,6 @@ function MainApp({ user, onLogout }) {
                                 ) : (
                                   <p className="text-[10px] text-gray-400 italic">{isJa ? '資料なし' : 'Chưa có file hay link nào'}</p>
                                 )}
-
                                 <div className="space-y-1 pt-1 border-t border-dashed border-gray-200">
                                   <input type="text" placeholder={isJa ? '資料名 (例: 契約書)' : 'Tên link (VD: Tài liệu thiết kế)'} value={attNameInputs[task.id] || ''} onChange={(e) => setAttNameInputs({ ...attNameInputs, [task.id]: e.target.value })} className="w-full text-[11px] border border-gray-200 rounded px-2 py-1 focus:outline-none" />
                                   <div className="flex gap-1">
