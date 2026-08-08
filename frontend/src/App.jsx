@@ -2,10 +2,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLanguageShortcut } from './useLanguageShortcut';
 
-// Thay bằng URL Backend Render của bạn sau khi deploy
-const API_URL = 'https://kanban-backend-xxxx.onrender.com/api';
-
-// Helper dịch có Timeout (không lo đơ app nếu API lỗi)
+// Helper dịch có Timeout (không lo đơ app nếu API dịch lỗi)
 async function autoTranslateText(text, targetLang) {
   if (!text || !text.trim()) return text;
   
@@ -27,97 +24,6 @@ async function autoTranslateText(text, targetLang) {
     console.warn('Tự động dịch bỏ qua/lỗi timeout, dùng chuỗi gốc:', error);
   }
   return text;
-}
-
-// -------------------------------------------------------------
-// FORM ĐĂNG NHẬP / ĐĂNG KÝ
-// -------------------------------------------------------------
-function AuthForm({ onLoginSuccess }) {
-  const [isRegister, setIsRegister] = useState(false);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [message, setMessage] = useState('');
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setMessage('');
-    const endpoint = isRegister ? '/register' : '/login';
-
-    try {
-      const res = await fetch(`${API_URL}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.message || 'Có lỗi xảy ra');
-
-      if (isRegister) {
-        setMessage('Đăng ký thành công! Hãy đăng nhập.');
-        setIsRegister(false);
-      } else {
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('username', data.username);
-        onLoginSuccess(data.username);
-      }
-    } catch (err) {
-      setMessage(err.message);
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-      <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md border border-gray-200">
-        <h2 className="text-2xl font-bold text-center text-gray-800 mb-6">
-          {isRegister ? '📝 Đăng ký Tài khoản' : '🔑 Đăng nhập Kanban'}
-        </h2>
-        {message && (
-          <div className={`p-3 rounded-lg text-xs font-semibold mb-4 text-center ${
-            message.includes('thành công') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-          }`}>
-            {message}
-          </div>
-        )}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Tên tài khoản</label>
-            <input 
-              type="text" 
-              required
-              value={username} 
-              onChange={(e) => setUsername(e.target.value)} 
-              className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:outline-none focus:border-blue-500"
-              placeholder="Nhập username"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Mật khẩu</label>
-            <input 
-              type="password" 
-              required
-              value={password} 
-              onChange={(e) => setPassword(e.target.value)} 
-              className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:outline-none focus:border-blue-500"
-              placeholder="Nhập mật khẩu"
-            />
-          </div>
-          <button 
-            type="submit" 
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors shadow-sm"
-          >
-            {isRegister ? 'Tạo Tài Khoản' : 'Đăng Nhập'}
-          </button>
-        </form>
-        <p 
-          onClick={() => setIsRegister(!isRegister)} 
-          className="mt-4 text-center text-xs text-blue-600 hover:underline cursor-pointer font-medium"
-        >
-          {isRegister ? 'Đã có tài khoản? Đăng nhập ngay' : 'Chưa có tài khoản? Đăng ký ngay'}
-        </p>
-      </div>
-    </div>
-  );
 }
 
 // -------------------------------------------------------------
@@ -719,7 +625,7 @@ function MainApp({ user, onLogout }) {
                               ))}
                             </div>
 
-                            {/* Form thêm mục con checklist hoàn chỉnh */}
+                            {/* Form thêm mục con checklist */}
                             <form onSubmit={(e) => handleAddChecklist(task.id, e)} className="flex gap-1 pt-1">
                               <input
                                 type="text"
@@ -762,32 +668,14 @@ function MainApp({ user, onLogout }) {
 }
 
 // -------------------------------------------------------------
-// MAIN COMPONENT ROOT
+// MAIN COMPONENT ROOT (Vào thẳng ứng dụng luôn, không cần Login)
 // -------------------------------------------------------------
 export default function App() {
-  const [user, setUser] = useState(null);
-
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    const username = localStorage.getItem('username');
-    if (token && username) {
-      setUser(username);
-    }
-  }, []);
-
-  const handleLoginSuccess = (username) => {
-    setUser(username);
-  };
+  const [user, setUser] = useState("Chinguyen");
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('username');
-    setUser(null);
+    setUser("Chinguyen");
   };
-
-  if (!user) {
-    return <AuthForm onLoginSuccess={handleLoginSuccess} />;
-  }
 
   return <MainApp user={user} onLogout={handleLogout} />;
 }
