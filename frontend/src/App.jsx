@@ -50,10 +50,10 @@ function MainApp({ user, onLogout }) {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Tự động tương thích ngược bổ sung thêm trường priority nếu task cũ chưa có
         return parsed.map(t => ({
           ...t,
-          priority: t.priority || 'MEDIUM'
+          priority: t.priority || 'MEDIUM',
+          attachments: t.attachments || [] // Đảm bảo luôn có mảng attachments
         }));
       } catch (e) { console.error(e); }
     }
@@ -70,6 +70,9 @@ function MainApp({ user, onLogout }) {
         checklists: [
           { id: 101, textVi: 'Ký hợp đồng thuê', textJa: '賃貸契約締結', completed: true },
           { id: 102, textVi: 'Thiết kế biển bảng', textJa: '看板デザイン', completed: false }
+        ],
+        attachments: [
+          { id: 'a1', name: 'Hop_dong_thue_mat_bang.pdf', url: 'https://example.com' }
         ]
       },
       {
@@ -83,7 +86,8 @@ function MainApp({ user, onLogout }) {
         dueDate: '2026-08-15',
         checklists: [
           { id: 201, textVi: 'Viết quy định phục vụ', textJa: '接客ルールの作成', completed: false }
-        ]
+        ],
+        attachments: []
       }
     ];
   });
@@ -95,12 +99,15 @@ function MainApp({ user, onLogout }) {
   const [newProjectName, setNewProjectName] = useState('');
   const [checklistFilter, setChecklistFilter] = useState('all');
   const [isTranslating, setIsTranslating] = useState(false);
-
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskAssignee, setNewTaskAssignee] = useState('');
   const [newTaskDueDate, setNewTaskDueDate] = useState('');
   const [newTaskPriority, setNewTaskPriority] = useState('MEDIUM');
   const [newChecklistText, setNewChecklistText] = useState({});
+
+  // State hỗ trợ nhập tài liệu đính kèm cho từng task
+  const [newAttName, setNewAttName] = useState({});
+  const [newAttUrl, setNewAttUrl] = useState({});
 
   // Các state cho tính năng mới (Lọc & Chế độ hiển thị)
   const [searchTerm, setSearchTerm] = useState('');
@@ -165,7 +172,8 @@ function MainApp({ user, onLogout }) {
         priority: newTaskPriority,
         assignee: newTaskAssignee.trim() || user,
         dueDate: newTaskDueDate || '',
-        checklists: []
+        checklists: [],
+        attachments: []
       };
       setTasks(prev => [...prev, newTask]);
       setNewTaskTitle('');
@@ -196,6 +204,35 @@ function MainApp({ user, onLogout }) {
       setNewChecklistText(prev => ({ ...prev, [taskId]: '' }));
       setIsTranslating(false);
     }
+  };
+
+  // Hàm xử lý thêm tài liệu đính kèm vào Task
+  const handleAddAttachment = (taskId, e) => {
+    e.preventDefault();
+    const name = newAttName[taskId];
+    const url = newAttUrl[taskId];
+    if (!name || !name.trim() || !url || !url.trim()) return;
+
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        const newAtt = { id: 'att_' + Date.now(), name: name.trim(), url: url.trim() };
+        return { ...t, attachments: [...(t.attachments || []), newAtt] };
+      }
+      return t;
+    }));
+
+    setNewAttName(prev => ({ ...prev, [taskId]: '' }));
+    setNewAttUrl(prev => ({ ...prev, [taskId]: '' }));
+  };
+
+  // Hàm xóa tài liệu đính kèm khỏi Task
+  const handleDeleteAttachment = (taskId, attId) => {
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        return { ...t, attachments: t.attachments.filter(a => a.id !== attId) };
+      }
+      return t;
+    }));
   };
 
   const handleStatusChange = (taskId, newStatus) => {
@@ -247,15 +284,13 @@ function MainApp({ user, onLogout }) {
     return true;
   });
 
-  // Tính tiến độ tổng quan toàn hệ thống dựa trên tổng số checklist (Thanh tiến độ tổng quan)
   const totalChecklistsCount = tasks.reduce((acc, t) => acc + t.checklists.length, 0);
   const completedChecklistsCount = tasks.reduce((acc, t) => acc + t.checklists.filter(c => c.completed).length, 0);
   const overallProgress = totalChecklistsCount > 0 ? Math.round((completedChecklistsCount / totalChecklistsCount) * 100) : 0;
 
   const currentProjectObj = projects.find(p => p.id === currentView);
-
-  // Danh sách task sau khi lọc theo Search, Assignee, Priority (Dùng cho Kanban & Lịch)
   const currentProjectTasks = tasks.filter(t => t.projectId === currentView);
+  
   const filteredTasks = currentProjectTasks.filter(t => {
     const title = getTaskTitle(t).toLowerCase();
     const assigneeName = (t.assignee || '').toLowerCase();
@@ -265,7 +300,6 @@ function MainApp({ user, onLogout }) {
     return matchSearch && matchAssignee && matchPriority;
   });
 
-  // Lấy danh sách nhân sự duy nhất để đưa vào bộ lọc
   const uniqueAssignees = Array.from(new Set(tasks.map(t => t.assignee).filter(Boolean)));
 
   return (
@@ -275,7 +309,6 @@ function MainApp({ user, onLogout }) {
           ⚡ {isJa ? '自動翻訳中...' : 'Đang tự động dịch...'}
         </div>
       )}
-
       <header className="bg-white border-b border-gray-200 px-6 py-4 shadow-sm flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">{isJa ? 'プロジェクト進捗レポート' : 'Báo Cáo Tiến Độ Dự Án'}</h1>
@@ -300,7 +333,6 @@ function MainApp({ user, onLogout }) {
           >
             📊 {isJa ? 'ダッシュボード' : 'Trang Tổng Hợp'}
           </button>
-
           <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{isJa ? 'プロジェクト一覧' : 'DANH MỤC DỰ ÁN'}</h2>
           
           <div className="flex-1 overflow-y-auto space-y-1">
@@ -358,7 +390,6 @@ function MainApp({ user, onLogout }) {
                 </div>
               </div>
 
-              {/* THANH TIẾN ĐỘ TỔNG QUAN HỆ THỐNG */}
               <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-bold text-gray-800">🚀 {isJa ? '全体チェックリスト進捗バー' : 'Thanh Tiến Độ Tổng Quan Toàn Bộ Dự Án'}</span>
@@ -378,7 +409,6 @@ function MainApp({ user, onLogout }) {
                     <button onClick={() => setChecklistFilter('completed')} className={`text-xs px-3 py-1.5 rounded-lg font-medium ${checklistFilter === 'completed' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600'}`}>{isJa ? '完了済み' : 'Đã xong'}</button>
                   </div>
                 </div>
-
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
@@ -407,7 +437,6 @@ function MainApp({ user, onLogout }) {
             </div>
           ) : (
             <div className="space-y-6">
-              {/* THANH TIẾN ĐỘ CỦA DỰ ÁN HIỆN TẠI */}
               {(() => {
                 const projChecklists = currentProjectTasks.flatMap(t => t.checklists);
                 const projTotal = projChecklists.length;
@@ -424,7 +453,6 @@ function MainApp({ user, onLogout }) {
                         <div className="bg-blue-600 h-2 rounded-full transition-all duration-300" style={{ width: `${projPercent}%` }}></div>
                       </div>
                     </div>
-                    {/* Chuyển đổi giữa chế độ Kanban và Lịch biểu */}
                     <div className="flex gap-2 shrink-0">
                       <button
                         onClick={() => setViewMode('kanban')}
@@ -443,7 +471,6 @@ function MainApp({ user, onLogout }) {
                 );
               })()}
 
-              {/* KHUNG THÊM TASK MỚI (Có chọn mức độ ưu tiên) */}
               <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
                 <h3 className="text-sm font-bold text-gray-800">✨ {isJa ? '新しいタスクを追加' : 'Thêm Công Việc Mới'}</h3>
                 <form onSubmit={handleAddTask} className="grid grid-cols-1 md:grid-cols-5 gap-3">
@@ -461,7 +488,6 @@ function MainApp({ user, onLogout }) {
                 </form>
               </div>
 
-              {/* THANH TÌM KIẾM & BỘ LỌC NHANH (Filter & Search) */}
               <div className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex flex-wrap items-center gap-3 justify-between">
                 <div className="flex flex-wrap items-center gap-2 flex-1">
                   <input
@@ -493,7 +519,6 @@ function MainApp({ user, onLogout }) {
                 )}
               </div>
 
-              {/* CHẾ ĐỘ HIỂN THỊ KANBAN HOẶC LỊCH BIỂU (CALENDAR VIEW) */}
               {viewMode === 'kanban' ? (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 align-top">
                   {[
@@ -508,26 +533,22 @@ function MainApp({ user, onLogout }) {
                           <span className="font-semibold text-gray-700 text-sm">{col.icon} {isJa ? col.labelJa : col.labelVi}</span>
                           <span className="bg-white text-gray-600 text-xs px-2 py-0.5 rounded-full border border-gray-200">{statusTasks.length}</span>
                         </div>
-
                         {statusTasks.map(task => {
                           const totalItems = task.checklists.length;
                           const completedItems = task.checklists.filter(c => c.completed).length;
                           const progressPercent = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
                           const priorityInfo = PRIORITIES[task.priority] || PRIORITIES['MEDIUM'];
-
                           return (
                             <div key={task.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
                               <div className="flex justify-between items-start gap-2">
                                 <h3 className="font-semibold text-gray-800 text-sm leading-snug">{getTaskTitle(task)}</h3>
                                 <button onClick={() => handleDeleteTask(task.id)} className="text-xs text-red-400 hover:text-red-600 shrink-0">✕</button>
                               </div>
-
                               <div className="flex flex-wrap gap-1.5 text-xs items-center justify-between">
                                 <div className="flex flex-wrap gap-1.5">
                                   {task.assignee && <span className="bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-md font-medium">👤 {task.assignee}</span>}
                                   {task.dueDate && <span className="bg-orange-50 text-orange-700 border border-orange-200 px-2 py-0.5 rounded-md font-medium">⏳ {task.dueDate}</span>}
                                 </div>
-                                {/* Mức độ ưu tiên có thể thay đổi trực tiếp ngay trên task */}
                                 <select
                                   value={task.priority || 'MEDIUM'}
                                   onChange={(e) => handlePriorityChange(task.id, e.target.value)}
@@ -568,6 +589,45 @@ function MainApp({ user, onLogout }) {
                                 <button type="submit" disabled={isTranslating} className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs px-2.5 py-1.5 rounded font-medium">{isJa ? '追加' : 'Thêm'}</button>
                               </form>
 
+                              {/* 👉 KHU VỰC TÀI LIỆU VÀ FILE ĐÍNH KÈM TRONG MỖI TASK */}
+                              <div className="pt-2 border-t border-gray-100 space-y-1.5">
+                                <p className="text-[11px] font-bold text-gray-600">📎 {isJa ? '添付資料' : 'Tài liệu / File đính kèm'}</p>
+                                {task.attachments && task.attachments.length > 0 ? (
+                                  <div className="space-y-1">
+                                    {task.attachments.map(att => (
+                                      <div key={att.id} className="flex items-center justify-between text-xs bg-gray-50 px-2 py-1 rounded border border-gray-100 group">
+                                        <a href={att.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline truncate pr-2 max-w-[170px]" title={att.name}>
+                                          📄 {att.name}
+                                        </a>
+                                        <button onClick={() => handleDeleteAttachment(task.id, att.id)} className="text-gray-400 hover:text-red-500 text-[10px]">✕</button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-[10px] text-gray-400 italic">{isJa ? '資料なし' : 'Chưa có file nào'}</p>
+                                )}
+
+                                <form onSubmit={(e) => handleAddAttachment(task.id, e)} className="space-y-1 pt-1">
+                                  <input 
+                                    type="text" 
+                                    placeholder={isJa ? '資料名 (例: 契約書)' : 'Tên tài liệu (VD: Hợp đồng)'} 
+                                    value={newAttName[task.id] || ''} 
+                                    onChange={(e) => setNewAttName({ ...newAttName, [task.id]: e.target.value })} 
+                                    className="w-full text-[11px] border border-gray-200 rounded px-2 py-1 focus:outline-none" 
+                                  />
+                                  <div className="flex gap-1">
+                                    <input 
+                                      type="text" 
+                                      placeholder="URL (https://...)" 
+                                      value={newAttUrl[task.id] || ''} 
+                                      onChange={(e) => setNewAttUrl({ ...newAttUrl, [task.id]: e.target.value })} 
+                                      className="w-full text-[11px] border border-gray-200 rounded px-2 py-1 focus:outline-none" 
+                                    />
+                                    <button type="submit" className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] px-2 py-1 rounded font-medium shrink-0">+</button>
+                                  </div>
+                                </form>
+                              </div>
+
                               <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
                                 <span className="text-[11px] text-gray-400">{isJa ? 'ステータス' : 'Trạng thái'}</span>
                                 <select value={task.status} onChange={(e) => handleStatusChange(task.id, e.target.value)} className="text-xs border border-gray-200 rounded px-2 py-1 bg-white text-gray-700 font-medium">
@@ -584,7 +644,6 @@ function MainApp({ user, onLogout }) {
                   })}
                 </div>
               ) : (
-                /* CHẾ ĐỘ LỊCH BIỂU (CALENDAR VIEW) SẮP XẾP THEO HẠN CHÓT */
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
                   <h3 className="font-bold text-gray-800 text-base">📅 {isJa ? '期限別カレンダーリスト' : 'Lịch Biểu Sắp Xếp Theo Hạn Chót (Deadline)'}</h3>
                   <div className="divide-y divide-gray-100">
