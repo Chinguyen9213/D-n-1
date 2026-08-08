@@ -8,27 +8,31 @@ datasource db {
 }
 
 model User {
-  id       Int       @id @default(autoincrement())
-  username String    @unique
-  password String
-  projects Project[]
+  id        String    @id @default(uuid())
+  email     String    @unique
+  password  String
+  projects  Project[]
+  createdAt DateTime  @default(now())
 }
 
 model Project {
-  id        Int      @id @default(autoincrement())
-  title     String
-  status    String   @default("In Progress")
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id])
+  id        String   @id @default(uuid())
+  name      String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   tasks     Task[]
   createdAt DateTime @default(now())
 }
 
 model Task {
-  id        Int      @id @default(autoincrement())
-  title     String
-  status    String   @default("To Do")
-  projectId Int
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
+  id          String   @id @default(uuid())
+  title       String
+  description String?  @default("")
+  assignee    String?  @default("Chưa phân công")
+  priority    String   @default("Trung bình")
+  status      String   @default("TODO")
+  dueDate     String
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
 }
