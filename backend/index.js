@@ -39,7 +39,6 @@ app.post('/api/register', async (req, res) => {
       data: { email, password: hashedPassword }
     });
 
-    // Tạo sẵn 1 dự án mẫu cho tài khoản mới
     await prisma.project.create({
       data: { name: 'Dự án đầu tiên', userId: user.id }
     });
@@ -67,7 +66,7 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// LẤY DỰ ÁN (Chỉ lấy dự án của người dùng đang đăng nhập)
+// LẤY DỰ ÁN
 app.get('/api/projects', authenticate, async (req, res) => {
   try {
     const projects = await prisma.project.findMany({
@@ -86,13 +85,14 @@ app.get('/api/projects', authenticate, async (req, res) => {
   }
 });
 
-// TẠO TASK MỚI
+// TẠO TASK MỚI (Lưu cả tên Vi và tên Ja)
 app.post('/api/tasks', authenticate, async (req, res) => {
   try {
-    const { title, description, assignee, priority, status, dueDate, projectId } = req.body;
+    const { title, titleJa, description, assignee, priority, status, dueDate, projectId } = req.body;
     const newTask = await prisma.task.create({
       data: {
         title,
+        titleJa: titleJa || title,
         description: description || '',
         assignee: assignee || 'Chưa phân công',
         priority: priority || 'Trung bình',
