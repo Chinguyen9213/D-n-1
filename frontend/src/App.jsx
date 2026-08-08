@@ -158,7 +158,7 @@ function MainApp() {
       <header className="bg-white border-b border-gray-200 px-6 py-4 shadow-sm flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">{t('report_title', 'Báo Cáo Tiến Độ Dự Án')}</h1>
-          <p className="text-sm text-gray-500">Hệ thống theo dõi công việc & Bảng tổng hợp Checklist</p>
+          <p className="text-sm text-gray-500">{t('subtitle', 'Hệ thống theo dõi công việc & Bảng tổng hợp Checklist')}</p>
         </div>
         <div className="flex items-center gap-4">
           <span className="text-xs bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg border border-gray-200 hidden sm:inline-block">
@@ -184,10 +184,12 @@ function MainApp() {
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
-            📊 Trang Tổng Hợp
+            📊 {t('overview_tab', 'Trang Tổng Hợp')}
           </button>
 
-          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Danh Mục Dự Án</h2>
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+            {t('project_category', 'Danh Mục Dự Án')}
+          </h2>
 
           <div className="flex-1 overflow-y-auto space-y-1">
             {projects.map(p => (
@@ -211,13 +213,13 @@ function MainApp() {
           <form onSubmit={handleAddProject} className="mt-4 pt-4 border-t border-gray-200 flex gap-2">
             <input
               type="text"
-              placeholder="+ Thêm thư mục..."
+              placeholder={t('add_folder_placeholder', '+ Thêm thư mục...')}
               value={newProjectName}
               onChange={(e) => setNewProjectName(e.target.value)}
               className="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-500"
             />
             <button type="submit" className="bg-blue-600 text-white text-sm px-3 py-1.5 rounded-lg hover:bg-blue-700 font-medium">
-              Thêm
+              {t('add_btn', 'Thêm')}
             </button>
           </form>
         </aside>
@@ -226,24 +228,24 @@ function MainApp() {
         <main className="flex-1 p-6 overflow-y-auto">
           {currentView === 'overview' ? (
             <div className="space-y-6">
-              <h2 className="text-xl font-bold text-gray-800">📊 Báo Cáo & Tổng Hợp Tiến Độ</h2>
+              <h2 className="text-xl font-bold text-gray-800">📊 {t('report_overview_heading', 'Báo Cáo & Tổng Hợp Tiến Độ')}</h2>
 
               {/* Cards Thống kê */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                  <p className="text-xs text-gray-500 font-medium">Tổng Thư Mục / Dự Án</p>
+                  <p className="text-xs text-gray-500 font-medium">{t('stat_total_projects', 'Tổng Thư Mục / Dự Án')}</p>
                   <p className="text-2xl font-bold text-gray-800 mt-1">{projects.length}</p>
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                  <p className="text-xs text-gray-500 font-medium">Tổng Hạng Mục Task</p>
+                  <p className="text-xs text-gray-500 font-medium">{t('stat_total_tasks', 'Tổng Hạng Mục Task')}</p>
                   <p className="text-2xl font-bold text-blue-600 mt-1">{totalTasks}</p>
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                  <p className="text-xs text-gray-500 font-medium">Tổng Đầu Việc Checklist</p>
+                  <p className="text-xs text-gray-500 font-medium">{t('stat_total_checklists', 'Tổng Đầu Việc Checklist')}</p>
                   <p className="text-2xl font-bold text-indigo-600 mt-1">{allChecklistItems.length}</p>
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                  <p className="text-xs text-gray-500 font-medium">Tiến Độ Hoàn Thành</p>
+                  <p className="text-xs text-gray-500 font-medium">{t('stat_overall_progress', 'Tiến Độ Hoàn Thành')}</p>
                   <p className="text-2xl font-bold text-green-600 mt-1">{overallProgress}%</p>
                 </div>
               </div>
@@ -253,9 +255,9 @@ function MainApp() {
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-gray-100">
                   <div>
                     <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                      📋 Bảng Checklist Chi Tiết Tất Cả Công Việc
+                      📋 {t('checklist_table_title', 'Bảng Checklist Chi Tiết Tất Cả Công Việc')}
                     </h3>
-                    <p className="text-xs text-gray-500">Liệt kê từng mục con cần thực hiện trong toàn bộ các dự án</p>
+                    <p className="text-xs text-gray-500">{t('checklist_table_sub', 'Liệt kê từng mục con cần thực hiện trong toàn bộ các dự án')}</p>
                   </div>
 
                   {/* Bộ lọc trạng thái */}
@@ -266,7 +268,7 @@ function MainApp() {
                         checklistFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                       }`}
                     >
-                      Tất cả ({allChecklistItems.length})
+                      {t('filter_all', 'Tất cả')} ({allChecklistItems.length})
                     </button>
                     <button
                       onClick={() => setChecklistFilter('pending')}
@@ -274,7 +276,7 @@ function MainApp() {
                         checklistFilter === 'pending' ? 'bg-yellow-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                       }`}
                     >
-                      Chưa xong ({allChecklistItems.filter(i => !i.completed).length})
+                      {t('filter_pending', 'Chưa xong')} ({allChecklistItems.filter(i => !i.completed).length})
                     </button>
                     <button
                       onClick={() => setChecklistFilter('completed')}
@@ -282,7 +284,7 @@ function MainApp() {
                         checklistFilter === 'completed' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                       }`}
                     >
-                      Đã xong ({allChecklistItems.filter(i => i.completed).length})
+                      {t('filter_completed', 'Đã xong')} ({allChecklistItems.filter(i => i.completed).length})
                     </button>
                   </div>
                 </div>
@@ -293,10 +295,10 @@ function MainApp() {
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-semibold">
                         <th className="p-3 w-10">{t('status_label', 'Trạng thái')}</th>
-                        <th className="p-3">Nội dung Checklist</th>
-                        <th className="p-3">Hạng Mục Task</th>
-                        <th className="p-3">Thư Mục / Dự Án</th>
-                        <th className="p-3 text-right">Thao Tác</th>
+                        <th className="p-3">{t('th_checklist_content', 'Nội dung Checklist')}</th>
+                        <th className="p-3">{t('th_task_category', 'Hạng Mục Task')}</th>
+                        <th className="p-3">{t('th_project_folder', 'Thư Mục / Dự Án')}</th>
+                        <th className="p-3 text-right">{t('th_action', 'Thao Tác')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -324,7 +326,7 @@ function MainApp() {
                               onClick={() => deleteChecklistItem(item.taskId, item.id)}
                               className="text-red-400 hover:text-red-600 font-medium"
                             >
-                              Xóa
+                              {t('delete_btn', 'Xóa')}
                             </button>
                           </td>
                         </tr>
@@ -333,7 +335,7 @@ function MainApp() {
                       {filteredChecklist.length === 0 && (
                         <tr>
                           <td colSpan="5" className="p-6 text-center text-gray-400 italic">
-                            Không có checklist nào phù hợp với bộ lọc.
+                            {t('empty_checklist', 'Không có checklist nào phù hợp với bộ lọc.')}
                           </td>
                         </tr>
                       )}
@@ -344,7 +346,7 @@ function MainApp() {
 
               {/* Danh sách Thư Mục Chi Tiết bên dưới */}
               <div className="space-y-4">
-                <h3 className="text-base font-bold text-gray-800">📁 Danh Sách Các Dự Án</h3>
+                <h3 className="text-base font-bold text-gray-800">📁 {t('project_list_heading', 'Danh Sách Các Dự Án')}</h3>
                 {projects.map(project => {
                   const projectTasks = tasks.filter(t => t.projectId === project.id);
                   const pTotal = projectTasks.length;
@@ -361,7 +363,7 @@ function MainApp() {
                           📁 {project.name}
                         </h4>
                         <p className="text-xs text-gray-500 mt-1">
-                          Tổng số Tasks: {pTotal} | Đã hoàn thành: {pDone}
+                          {t('total_tasks_label', 'Tổng số Tasks')}: {pTotal} | {t('completed_label', 'Đã hoàn thành')}: {pDone}
                         </p>
                       </div>
                       <div className="flex items-center gap-4">
@@ -370,7 +372,7 @@ function MainApp() {
                           onClick={() => setCurrentView(project.id)}
                           className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg font-medium"
                         >
-                          Mở Kanban Board →
+                          {t('open_kanban', 'Mở Kanban Board →')}
                         </button>
                       </div>
                     </div>
@@ -389,13 +391,13 @@ function MainApp() {
                 <form onSubmit={handleAddTask} className="flex gap-2">
                   <input
                     type="text"
-                    placeholder="Nhập tên công việc mới..."
+                    placeholder={t('new_task_placeholder', 'Nhập tên công việc mới...')}
                     value={newTaskTitle}
                     onChange={(e) => setNewTaskTitle(e.target.value)}
                     className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 w-64 shadow-sm"
                   />
                   <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow-sm">
-                    + Tạo Task Mới
+                    {t('add_task_btn', '+ Tạo Task Mới')}
                   </button>
                 </form>
               </div>
@@ -410,7 +412,7 @@ function MainApp() {
                           {status === 'Cần Làm' && '🟡'}
                           {status === 'Đang Làm' && '🔵'}
                           {status === 'Đã Xong' && '🟢'}
-                          {status === 'Đã Xong' ? t('status_done', 'Đã Xong') : status === 'Đang Làm' ? t('status_pending', 'Đang Làm') : status}
+                          {status === 'Đã Xong' ? t('status_done', 'Đã Xong') : status === 'Đang Làm' ? t('status_pending', 'Đang Làm') : t('status_todo', 'Cần Làm')}
                         </span>
                         <span className="bg-white text-gray-600 text-xs px-2 py-0.5 rounded-full font-medium border border-gray-200 shadow-sm">
                           {statusTasks.length}
@@ -426,13 +428,13 @@ function MainApp() {
                           <div key={task.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
                             <div className="flex justify-between items-start">
                               <h3 className="font-semibold text-gray-800 text-sm">{task.title}</h3>
-                              <button onClick={() => handleDeleteTask(task.id)} className="text-xs text-red-400 hover:text-red-600">Xóa</button>
+                              <button onClick={() => handleDeleteTask(task.id)} className="text-xs text-red-400 hover:text-red-600">{t('delete_btn', 'Xóa')}</button>
                             </div>
 
                             {totalItems > 0 && (
                               <div className="space-y-1">
                                 <div className="flex justify-between text-xs text-gray-500">
-                                  <span>Tiến độ Checklist</span>
+                                  <span>{t('checklist_progress', 'Tiến độ Checklist')}</span>
                                   <span>{completedItems}/{totalItems} ({progressPercent}%)</span>
                                 </div>
                                 <div className="w-full bg-gray-200 h-1.5 rounded-full overflow-hidden">
@@ -471,13 +473,13 @@ function MainApp() {
                             <form onSubmit={(e) => handleAddChecklist(task.id, e)} className="flex gap-1 pt-1">
                               <input
                                 type="text"
-                                placeholder="+ Thêm mục nhỏ..."
+                                placeholder={t('add_subitem_placeholder', '+ Thêm mục nhỏ...')}
                                 value={newChecklistText[task.id] || ''}
                                 onChange={(e) => setNewChecklistText({ ...newChecklistText, [task.id]: e.target.value })}
                                 className="text-xs border border-gray-200 rounded px-2 py-1 flex-1 focus:outline-none focus:border-blue-400"
                               />
                               <button type="submit" className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-1 rounded font-medium">
-                                Thêm
+                                {t('add_btn', 'Thêm')}
                               </button>
                             </form>
 
@@ -488,9 +490,9 @@ function MainApp() {
                                 onChange={(e) => handleStatusChange(task.id, e.target.value)}
                                 className="text-xs border border-gray-200 rounded px-2 py-1 bg-gray-50 text-gray-600 focus:outline-none"
                               >
-                                <option value="Cần Làm">Cần Làm</option>
-                                <option value="Đang Làm">Đang Làm</option>
-                                <option value="Đã Xong">Đã Xong</option>
+                                <option value="Cần Làm">{t('status_todo', 'Cần Làm')}</option>
+                                <option value="Đang Làm">{t('status_pending', 'Đang Làm')}</option>
+                                <option value="Đã Xong">{t('status_done', 'Đã Xong')}</option>
                               </select>
                             </div>
                           </div>
@@ -499,7 +501,7 @@ function MainApp() {
 
                       {statusTasks.length === 0 && (
                         <div className="text-center py-6 border-2 border-dashed border-gray-200 rounded-lg text-xs text-gray-400">
-                          Chưa có công việc
+                          {t('empty_task_col', 'Chưa có công việc')}
                         </div>
                       )}
                     </div>
