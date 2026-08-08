@@ -53,7 +53,7 @@ function MainApp({ user, onLogout }) {
         return parsed.map(t => ({
           ...t,
           priority: t.priority || 'MEDIUM',
-          attachments: t.attachments || [] // Đảm bảo luôn có mảng attachments
+          attachments: t.attachments || []
         }));
       } catch (e) { console.error(e); }
     }
@@ -74,20 +74,6 @@ function MainApp({ user, onLogout }) {
         attachments: [
           { id: 'a1', name: 'Hop_dong_thue_mat_bang.pdf', url: 'https://example.com' }
         ]
-      },
-      {
-        id: 2,
-        projectId: 'p1',
-        titleVi: 'Xây dựng quy trình SOP',
-        titleJa: 'SOPプロセスの構築',
-        status: 'Cần Làm',
-        priority: 'MEDIUM',
-        assignee: 'Chi',
-        dueDate: '2026-08-15',
-        checklists: [
-          { id: 201, textVi: 'Viết quy định phục vụ', textJa: '接客ルールの作成', completed: false }
-        ],
-        attachments: []
       }
     ];
   });
@@ -109,11 +95,15 @@ function MainApp({ user, onLogout }) {
   const [newAttName, setNewAttName] = useState({});
   const [newAttUrl, setNewAttUrl] = useState({});
 
-  // Các state cho tính năng mới (Lọc & Chế độ hiển thị)
+  // State quản lý việc sửa tên Task trực tiếp
+  const [editingTaskId, setEditingTaskId] = useState(null);
+  const [editingTaskTitleText, setEditingTaskTitleText] = useState('');
+
+  // Các state lọc & chế độ hiển thị
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAssignee, setFilterAssignee] = useState('all');
   const [filterPriority, setFilterPriority] = useState('all');
-  const [viewMode, setViewMode] = useState('kanban'); // 'kanban' hoặc 'calendar'
+  const [viewMode, setViewMode] = useState('kanban');
 
   const toggleLanguage = () => {
     const currentLang = i18n.language || 'vi';
@@ -184,6 +174,31 @@ function MainApp({ user, onLogout }) {
     }
   };
 
+  // Cập nhật tên Task đã tạo
+  const handleSaveTaskTitle = async (taskId) => {
+    if (!editingTaskTitleText.trim()) {
+      setEditingTaskId(null);
+      return;
+    }
+    setIsTranslating(true);
+    const textInput = editingTaskTitleText.trim();
+    let titleVi = textInput, titleJa = textInput;
+    try {
+      if (isJa) titleVi = await autoTranslateText(textInput, 'vi');
+      else nameJa = await autoTranslateText(textInput, 'ja');
+    } finally {
+      setTasks(prev => prev.map(t => {
+        if (t.id === taskId) {
+          return { ...t, titleVi, titleJa };
+        }
+        return t;
+      }));
+      setEditingTaskId(null);
+      setEditingTaskTitleText('');
+      setIsTranslating(false);
+    }
+  };
+
   const handleAddChecklist = async (taskId, e) => {
     e.preventDefault();
     const text = newChecklistText[taskId];
@@ -206,9 +221,8 @@ function MainApp({ user, onLogout }) {
     }
   };
 
-  // Hàm xử lý thêm tài liệu đính kèm vào Task
-  const handleAddAttachment = (taskId, e) => {
-    e.preventDefault();
+  // Sửa lỗi nút thêm tài liệu bằng cách hỗ trợ cả type="button" và bắt sự kiện click rõ ràng
+  const handleAddAttachment = (taskId) => {
     const name = newAttName[taskId];
     const url = newAttUrl[taskId];
     if (!name || !name.trim() || !url || !url.trim()) return;
@@ -225,7 +239,6 @@ function MainApp({ user, onLogout }) {
     setNewAttUrl(prev => ({ ...prev, [taskId]: '' }));
   };
 
-  // Hàm xóa tài liệu đính kèm khỏi Task
   const handleDeleteAttachment = (taskId, attId) => {
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
@@ -541,9 +554,42 @@ function MainApp({ user, onLogout }) {
                           return (
                             <div key={task.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
                               <div className="flex justify-between items-start gap-2">
-                                <h3 className="font-semibold text-gray-800 text-sm leading-snug">{getTaskTitle(task)}</h3>
-                                <button onClick={() => handleDeleteTask(task.id)} className="text-xs text-red-400 hover:text-red-600 shrink-0">✕</button>
+                                {editingTaskId === task.id ? (
+                                  <div className="flex items-center gap-1 flex-1">
+                                    <input
+                                      type="text"
+                                      value={editingTaskTitleText}
+                                      onChange={(e) => setEditingTaskTitleText(e.target.value)}
+                                      className="border border-blue-500 rounded px-2 py-1 text-xs w-full focus:outline-none"
+                                      autoFocus
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSaveTaskTitle(task.id)}
+                                      className="bg-blue-600 text-white text-[11px] px-2 py-1 rounded shrink-0 font-medium"
+                                    >
+                                      {isJa ? '保存' : 'Lưu'}
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-between gap-2 flex-1 group/title">
+                                    <h3 className="font-semibold text-gray-800 text-sm leading-snug flex-1">{getTaskTitle(task)}</h3>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingTaskId(task.id);
+                                        setEditingTaskTitleText(getTaskTitle(task));
+                                      }}
+                                      className="text-gray-400 hover:text-blue-600 text-xs opacity-0 group-hover/title:opacity-150 transition-opacity"
+                                      title={isJa ? 'タイトルを編集' : 'Sửa tên task'}
+                                    >
+                                      ✏️
+                                    </button>
+                                  </div>
+                                )}
+                                <button type="button" onClick={() => handleDeleteTask(task.id)} className="text-xs text-red-400 hover:text-red-600 shrink-0">✕</button>
                               </div>
+
                               <div className="flex flex-wrap gap-1.5 text-xs items-center justify-between">
                                 <div className="flex flex-wrap gap-1.5">
                                   {task.assignee && <span className="bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-md font-medium">👤 {task.assignee}</span>}
@@ -579,7 +625,7 @@ function MainApp({ user, onLogout }) {
                                       <input type="checkbox" checked={item.completed} onChange={() => toggleChecklist(task.id, item.id)} className="rounded text-blue-600 w-3.5 h-3.5" />
                                       <span className={item.completed ? 'line-through text-gray-400' : 'text-gray-700'}>{getChecklistText(item)}</span>
                                     </label>
-                                    <button onClick={() => deleteChecklistItem(task.id, item.id)} className="text-gray-300 hover:text-red-500 hidden group-hover:block">✕</button>
+                                    <button type="button" onClick={() => deleteChecklistItem(task.id, item.id)} className="text-gray-300 hover:text-red-500 hidden group-hover:block">✕</button>
                                   </div>
                                 ))}
                               </div>
@@ -589,7 +635,7 @@ function MainApp({ user, onLogout }) {
                                 <button type="submit" disabled={isTranslating} className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs px-2.5 py-1.5 rounded font-medium">{isJa ? '追加' : 'Thêm'}</button>
                               </form>
 
-                              {/* 👉 KHU VỰC TÀI LIỆU VÀ FILE ĐÍNH KÈM TRONG MỖI TASK */}
+                              {/* 👉 KHU VỰC TÀI LIỆU VÀ FILE ĐÍNH KÈM (ĐÃ SỬA NÚT +) */}
                               <div className="pt-2 border-t border-gray-100 space-y-1.5">
                                 <p className="text-[11px] font-bold text-gray-600">📎 {isJa ? '添付資料' : 'Tài liệu / File đính kèm'}</p>
                                 {task.attachments && task.attachments.length > 0 ? (
@@ -599,7 +645,7 @@ function MainApp({ user, onLogout }) {
                                         <a href={att.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline truncate pr-2 max-w-[170px]" title={att.name}>
                                           📄 {att.name}
                                         </a>
-                                        <button onClick={() => handleDeleteAttachment(task.id, att.id)} className="text-gray-400 hover:text-red-500 text-[10px]">✕</button>
+                                        <button type="button" onClick={() => handleDeleteAttachment(task.id, att.id)} className="text-gray-400 hover:text-red-500 text-[10px]">✕</button>
                                       </div>
                                     ))}
                                   </div>
@@ -607,7 +653,7 @@ function MainApp({ user, onLogout }) {
                                   <p className="text-[10px] text-gray-400 italic">{isJa ? '資料なし' : 'Chưa có file nào'}</p>
                                 )}
 
-                                <form onSubmit={(e) => handleAddAttachment(task.id, e)} className="space-y-1 pt-1">
+                                <div className="space-y-1 pt-1">
                                   <input 
                                     type="text" 
                                     placeholder={isJa ? '資料名 (例: 契約書)' : 'Tên tài liệu (VD: Hợp đồng)'} 
@@ -623,9 +669,15 @@ function MainApp({ user, onLogout }) {
                                       onChange={(e) => setNewAttUrl({ ...newAttUrl, [task.id]: e.target.value })} 
                                       className="w-full text-[11px] border border-gray-200 rounded px-2 py-1 focus:outline-none" 
                                     />
-                                    <button type="submit" className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] px-2 py-1 rounded font-medium shrink-0">+</button>
+                                    <button 
+                                      type="button" 
+                                      onClick={() => handleAddAttachment(task.id)}
+                                      className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] px-2.5 py-1 rounded font-bold shrink-0 cursor-pointer"
+                                    >
+                                      +
+                                    </button>
                                   </div>
-                                </form>
+                                </div>
                               </div>
 
                               <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
