@@ -2,27 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLanguageShortcut } from './useLanguageShortcut';
 
-async function autoTranslateText(text, targetLang) {
-  if (!text || !text.trim()) return text;
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 3000);
-  try {
-    const langPair = targetLang === 'ja' ? 'vi|ja' : 'ja|vi';
-    const res = await fetch(
-      `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${langPair}`,
-      { signal: controller.signal }
-    );
-    clearTimeout(timeoutId);
-    const data = await res.json();
-    if (data && data.responseData && data.responseData.translatedText) {
-      return data.responseData.translatedText;
-    }
-  } catch (error) {
-    console.warn('Translate fallback:', error);
-  }
-  return text;
-}
-
 const PRIORITIES = {
   HIGH: { labelVi: '🔥 Cao', labelJa: '🔥 高', color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
   MEDIUM: { labelVi: '⚡ Trung bình', labelJa: '⚡ 中', color: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-200' },
@@ -80,18 +59,26 @@ function MainApp({ user, onLogout }) {
   useEffect(() => { localStorage.setItem('kanban_tasks', JSON.stringify(tasks)); }, [tasks]);
 
   const [currentView, setCurrentView] = useState('p1');
-  const [newProjectName, setNewProjectName] = useState('');
+  const [newProjectNameVi, setNewProjectNameVi] = useState('');
+  const [newProjectNameJa, setNewProjectNameJa] = useState('');
+  
   const [checklistFilter, setChecklistFilter] = useState('all');
-  const [isTranslating, setIsTranslating] = useState(false);
-  const [newTaskTitle, setNewTaskTitle] = useState('');
+  
+  const [newTaskTitleVi, setNewTaskTitleVi] = useState('');
+  const [newTaskTitleJa, setNewTaskTitleJa] = useState('');
   const [newTaskAssignee, setNewTaskAssignee] = useState('');
   const [newTaskDueDate, setNewTaskDueDate] = useState('');
   const [newTaskPriority, setNewTaskPriority] = useState('MEDIUM');
   const [newChecklistText, setNewChecklistText] = useState({});
 
+  // State nhập tài liệu đính kèm
+  const [attNameInputs, setAttNameInputs] = useState({});
+  const [attUrlInputs, setAttUrlInputs] = useState({});
+
   // State chỉnh sửa tên Task
   const [editingTaskId, setEditingTaskId] = useState(null);
-  const [editingTitleText, setEditingTitleText] = useState('');
+  const [editTitleVi, setEditTitleVi] = useState('');
+  const [editTitleJa, setEditTitleJa] = useState('');
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAssignee, setFilterAssignee] = useState('all');
@@ -118,93 +105,79 @@ function MainApp({ user, onLogout }) {
     }
   };
 
-  const handleAddProject = async (e) => {
+  const handleAddProject = (e) => {
     e.preventDefault();
-    if (!newProjectName.trim()) return;
-    setIsTranslating(true);
-    const textInput = newProjectName.trim();
-    let nameVi = textInput, nameJa = textInput;
-    try {
-      if (isJa) nameVi = await autoTranslateText(textInput, 'vi');
-      else nameJa = await autoTranslateText(textInput, 'ja');
-    } finally {
-      const newProj = { id: 'p_' + Date.now(), nameVi, nameJa };
-      setProjects(prev => [...prev, newProj]);
-      setCurrentView(newProj.id);
-      setNewProjectName('');
-      setIsTranslating(false);
-    }
+    if (!newProjectNameVi.trim() && !newProjectNameJa.trim()) return;
+    const nameVi = newProjectNameVi.trim() || newProjectNameJa.trim();
+    const nameJa = newProjectNameJa.trim() || newProjectNameVi.trim();
+    
+    const newProj = { id: 'p_' + Date.now(), nameVi, nameJa };
+    setProjects(prev => [...prev, newProj]);
+    setCurrentView(newProj.id);
+    setNewProjectNameVi('');
+    setNewProjectNameJa('');
   };
 
-  const handleAddTask = async (e) => {
+  const handleAddTask = (e) => {
     e.preventDefault();
-    if (!newTaskTitle.trim()) return;
-    setIsTranslating(true);
-    const textInput = newTaskTitle.trim();
-    let titleVi = textInput, titleJa = textInput;
-    try {
-      if (isJa) titleVi = await autoTranslateText(textInput, 'vi');
-      else nameJa = await autoTranslateText(textInput, 'ja');
-    } finally {
-      const newTask = {
-        id: Date.now(),
-        projectId: currentView,
-        titleVi,
-        titleJa,
-        status: 'Cần Làm',
-        priority: newTaskPriority,
-        assignee: newTaskAssignee.trim() || user,
-        dueDate: newTaskDueDate || '',
-        checklists: [],
-        attachments: []
-      };
-      setTasks(prev => [...prev, newTask]);
-      setNewTaskTitle('');
-      setNewTaskAssignee('');
-      setNewTaskDueDate('');
-      setNewTaskPriority('MEDIUM');
-      setIsTranslating(false);
-    }
+    if (!newTaskTitleVi.trim() && !newTaskTitleJa.trim()) return;
+    const titleVi = newTaskTitleVi.trim() || newTaskTitleJa.trim();
+    const titleJa = newTaskTitleJa.trim() || newTaskTitleVi.trim();
+
+    const newTask = {
+      id: Date.now(),
+      projectId: currentView,
+      titleVi,
+      titleJa,
+      status: 'Cần Làm',
+      priority: newTaskPriority,
+      assignee: newTaskAssignee.trim() || user,
+      dueDate: newTaskDueDate || '',
+      checklists: [],
+      attachments: []
+    };
+    setTasks(prev => [...prev, newTask]);
+    setNewTaskTitleVi('');
+    setNewTaskTitleJa('');
+    setNewTaskAssignee('');
+    setNewTaskDueDate('');
+    setNewTaskPriority('MEDIUM');
   };
 
-  // Hàm lưu tên Task sau khi sửa
-  const handleSaveTaskTitle = async (taskId) => {
-    if (!editingTitleText.trim()) {
-      setEditingTaskId(null);
+  // Lưu tên Task sau khi chỉnh sửa trực tiếp
+  const handleSaveTaskTitle = (taskId) => {
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        return {
+          ...t,
+          titleVi: editTitleVi.trim() || t.titleVi,
+          titleJa: editTitleJa.trim() || t.titleJa
+        };
+      }
+      return t;
+    }));
+    setEditingTaskId(null);
+  };
+
+  // Thêm file / tài liệu đính kèm
+  const handleAddAttachment = (taskId) => {
+    const name = attNameInputs[taskId];
+    const url = attUrlInputs[taskId];
+    if (!name || !name.trim() || !url || !url.trim()) {
+      alert(isJa ? '資料名とURLの両方を入力してください。' : 'Vui lòng nhập đầy đủ tên tài liệu và URL!');
       return;
     }
-    setIsTranslating(true);
-    const textInput = editingTitleText.trim();
-    let titleVi = textInput, titleJa = textInput;
-    try {
-      if (isJa) titleVi = await autoTranslateText(textInput, 'vi');
-      else nameJa = await autoTranslateText(textInput, 'ja');
-    } finally {
-      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, titleVi, titleJa } : t));
-      setEditingTaskId(null);
-      setEditingTitleText('');
-      setIsTranslating(false);
-    }
-  };
-
-  // Xử lý chọn file từ máy tính và tải lên trực tiếp
-  const handleFileUpload = (taskId, e) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    const file = files[0];
-    const fileUrl = URL.createObjectURL(file); // Tạo đường dẫn tạm thời từ file trong máy
 
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
-        const newAtt = { id: 'att_' + Date.now(), name: file.name, url: fileUrl };
+        const newAtt = { id: 'att_' + Date.now(), name: name.trim(), url: url.trim() };
         return { ...t, attachments: [...(t.attachments || []), newAtt] };
       }
       return t;
     }));
 
-    // Reset input file để có thể chọn lại cùng 1 file nếu cần
-    e.target.value = '';
+    setAttNameInputs(prev => ({ ...prev, [taskId]: '' }));
+    setAttUrlInputs(prev => ({ ...prev, [taskId]: '' }));
   };
 
   const handleDeleteAttachment = (taskId, attId) => {
@@ -216,26 +189,20 @@ function MainApp({ user, onLogout }) {
     }));
   };
 
-  const handleAddChecklist = async (taskId, e) => {
+  const handleAddChecklist = (taskId, e) => {
     e.preventDefault();
     const text = newChecklistText[taskId];
     if (!text || !text.trim()) return;
-    setIsTranslating(true);
-    const textInput = text.trim();
-    let textVi = textInput, textJa = textInput;
-    try {
-      if (isJa) textVi = await autoTranslateText(textInput, 'vi');
-      else nameJa = await autoTranslateText(textInput, 'ja');
-    } finally {
-      setTasks(prev => prev.map(t => {
-        if (t.id === taskId) {
-          return { ...t, checklists: [...t.checklists, { id: Date.now(), textVi, textJa, completed: false }] };
-        }
-        return t;
-      }));
-      setNewChecklistText(prev => ({ ...prev, [taskId]: '' }));
-      setIsTranslating(false);
-    }
+    const textVi = text.trim();
+    const textJa = text.trim();
+
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        return { ...t, checklists: [...t.checklists, { id: Date.now(), textVi, textJa, completed: false }] };
+      }
+      return t;
+    }));
+    setNewChecklistText(prev => ({ ...prev, [taskId]: '' }));
   };
 
   const handleStatusChange = (taskId, newStatus) => {
@@ -307,11 +274,6 @@ function MainApp({ user, onLogout }) {
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col font-sans relative">
-      {isTranslating && (
-        <div className="fixed top-4 right-4 z-50 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg text-xs font-semibold flex items-center gap-2 animate-bounce">
-          ⚡ {isJa ? '自動翻訳中...' : 'Đang tự động dịch...'}
-        </div>
-      )}
       <header className="bg-white border-b border-gray-200 px-6 py-4 shadow-sm flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">{isJa ? 'プロジェクト進捗レポート' : 'Báo Cáo Tiến Độ Dự Án'}</h1>
@@ -358,15 +320,22 @@ function MainApp({ user, onLogout }) {
             ))}
           </div>
 
-          <form onSubmit={handleAddProject} className="mt-4 pt-4 border-t border-gray-200 flex gap-2">
+          <form onSubmit={handleAddProject} className="mt-4 pt-4 border-t border-gray-200 space-y-2">
             <input
               type="text"
-              placeholder={isJa ? '+ フォルダを追加...' : '+ Thêm danh mục...'}
-              value={newProjectName}
-              onChange={(e) => setNewProjectName(e.target.value)}
-              className="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-500"
+              placeholder={isJa ? 'フォルダ名 (Tiếng Việt)' : 'Tên dự án (Tiếng Việt)'}
+              value={newProjectNameVi}
+              onChange={(e) => setNewProjectNameVi(e.target.value)}
+              className="w-full text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-500"
             />
-            <button type="submit" disabled={isTranslating} className="bg-blue-600 text-white text-sm px-3 py-1.5 rounded-lg">{isJa ? '追加' : 'Thêm'}</button>
+            <input
+              type="text"
+              placeholder={isJa ? 'フォルダ名 (日本語)' : 'Tên dự án (Tiếng Nhật)'}
+              value={newProjectNameJa}
+              onChange={(e) => setNewProjectNameJa(e.target.value)}
+              className="w-full text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-500"
+            />
+            <button type="submit" className="w-full bg-blue-600 text-white text-xs font-semibold py-1.5 rounded-lg">{isJa ? 'フォルダ追加' : '+ Thêm danh mục'}</button>
           </form>
         </aside>
 
@@ -475,18 +444,22 @@ function MainApp({ user, onLogout }) {
               })()}
 
               <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
-                <h3 className="text-sm font-bold text-gray-800">✨ {isJa ? '新しいタスクを追加' : 'Thêm Công Việc Mới'}</h3>
-                <form onSubmit={handleAddTask} className="grid grid-cols-1 md:grid-cols-5 gap-3">
-                  <input type="text" placeholder={isJa ? 'タスク名を入力...' : 'Nhập tên công việc...'} value={newTaskTitle} onChange={(e) => setNewTaskTitle(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 md:col-span-2" required />
-                  <input type="text" placeholder={isJa ? '担当者' : 'Người phụ trách'} value={newTaskAssignee} onChange={(e) => setNewTaskAssignee(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
-                  <input type="date" value={newTaskDueDate} onChange={(e) => setNewTaskDueDate(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-600" />
-                  <div className="flex gap-2">
-                    <select value={newTaskPriority} onChange={(e) => setNewTaskPriority(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-2 text-xs bg-white text-gray-700 font-semibold flex-1">
-                      <option value="HIGH">🔥 Cao</option>
-                      <option value="MEDIUM">⚡ Trung bình</option>
-                      <option value="LOW">✅ Thấp</option>
-                    </select>
-                    <button type="submit" disabled={isTranslating} className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg shrink-0">{isJa ? '追加' : 'Tạo'}</button>
+                <h3 className="text-sm font-bold text-gray-800">✨ {isJa ? '新しいタスクを追加' : 'Thêm Công Việc Mới (Song ngữ Tiếng Việt & Tiếng Nhật)'}</h3>
+                <form onSubmit={handleAddTask} className="grid grid-cols-1 md:grid-cols-6 gap-3">
+                  <input type="text" placeholder={isJa ? 'タスク名 (Tiếng Việt)' : 'Tên task (Tiếng Việt)'} value={newTaskTitleVi} onChange={(e) => setNewTaskTitleVi(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-blue-500 md:col-span-2" />
+                  <input type="text" placeholder={isJa ? 'タスク名 (日本語)' : 'Tên task (Tiếng Nhật)'} value={newTaskTitleJa} onChange={(e) => setNewTaskTitleJa(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-blue-500 md:col-span-2" />
+                  <input type="text" placeholder={isJa ? '担当者' : 'Người phụ trách'} value={newTaskAssignee} onChange={(e) => setNewTaskAssignee(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-blue-500" />
+                  <input type="date" value={newTaskDueDate} onChange={(e) => setNewTaskDueDate(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-xs text-gray-600" />
+                  <div className="flex gap-2 md:col-span-6 justify-between items-center pt-2">
+                    <div className="flex gap-2 items-center">
+                      <span className="text-xs text-gray-500 font-medium">{isJa ? '優先度:' : 'Mức ưu tiên:'}</span>
+                      <select value={newTaskPriority} onChange={(e) => setNewTaskPriority(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs bg-white text-gray-700 font-semibold">
+                        <option value="HIGH">🔥 Cao</option>
+                        <option value="MEDIUM">⚡ Trung bình</option>
+                        <option value="LOW">✅ Thấp</option>
+                      </select>
+                    </div>
+                    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-6 py-2 rounded-lg">{isJa ? '追加' : 'Tạo Công Việc'}</button>
                   </div>
                 </form>
               </div>
@@ -545,33 +518,51 @@ function MainApp({ user, onLogout }) {
                             <div key={task.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
                               <div className="flex justify-between items-start gap-2">
                                 {editingTaskId === task.id ? (
-                                  <div className="flex items-center gap-1 flex-1">
+                                  <div className="space-y-1.5 flex-1">
                                     <input
                                       type="text"
-                                      value={editingTitleText}
-                                      onChange={(e) => setEditingTitleText(e.target.value)}
+                                      placeholder="Tên Tiếng Việt"
+                                      value={editTitleVi}
+                                      onChange={(e) => setEditTitleVi(e.target.value)}
                                       className="border border-blue-500 rounded px-2 py-1 text-xs w-full focus:outline-none"
                                       autoFocus
                                     />
-                                    <button
-                                      type="button"
-                                      onClick={() => handleSaveTaskTitle(task.id)}
-                                      className="bg-blue-600 text-white text-[11px] px-2.5 py-1 rounded shrink-0 font-bold"
-                                    >
-                                      {isJa ? '保存' : 'Lưu'}
-                                    </button>
+                                    <input
+                                      type="text"
+                                      placeholder="Tên Tiếng Nhật"
+                                      value={editTitleJa}
+                                      onChange={(e) => setEditTitleJa(e.target.value)}
+                                      className="border border-blue-500 rounded px-2 py-1 text-xs w-full focus:outline-none"
+                                    />
+                                    <div className="flex justify-end gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingTaskId(null)}
+                                        className="bg-gray-200 text-gray-700 text-[11px] px-2 py-0.5 rounded font-bold"
+                                      >
+                                        Hủy
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSaveTaskTitle(task.id)}
+                                        className="bg-blue-600 text-white text-[11px] px-3 py-0.5 rounded font-bold"
+                                      >
+                                        {isJa ? '保存' : 'Lưu'}
+                                      </button>
+                                    </div>
                                   </div>
                                 ) : (
-                                  <div className="flex items-center justify-between gap-2 flex-1 group/title">
+                                  <div className="flex items-center justify-between gap-2 flex-1">
                                     <h3 className="font-semibold text-gray-800 text-sm leading-snug flex-1">{getTaskTitle(task)}</h3>
                                     <button
                                       type="button"
                                       onClick={() => {
                                         setEditingTaskId(task.id);
-                                        setEditingTitleText(getTaskTitle(task));
+                                        setEditTitleVi(task.titleVi || '');
+                                        setEditTitleJa(task.titleJa || '');
                                       }}
-                                      className="text-gray-400 hover:text-blue-600 text-xs opacity-60 hover:opacity-100 transition-opacity"
-                                      title={isJa ? 'タイトルを編集' : 'Sửa tên task'}
+                                      className="text-gray-400 hover:text-blue-600 text-xs transition-opacity"
+                                      title="Sửa tên task"
                                     >
                                       ✏️
                                     </button>
@@ -622,28 +613,17 @@ function MainApp({ user, onLogout }) {
 
                               <form onSubmit={(e) => handleAddChecklist(task.id, e)} className="flex gap-1 pt-1">
                                 <input type="text" placeholder={isJa ? '+ 追加...' : '+ Thêm mục con...'} value={newChecklistText[task.id] || ''} onChange={(e) => setNewChecklistText({ ...newChecklistText, [task.id]: e.target.value })} className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none" />
-                                <button type="submit" disabled={isTranslating} className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs px-2.5 py-1.5 rounded font-medium">{isJa ? '追加' : 'Thêm'}</button>
+                                <button type="submit" className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs px-2.5 py-1.5 rounded font-medium">{isJa ? '追加' : 'Thêm'}</button>
                               </form>
 
-                              {/* CHỌN FILE TỪ MÁY TÍNH LÊN TASK */}
+                              {/* QUẢN LÝ TÀI LIỆU / LINK */}
                               <div className="pt-2 border-t border-gray-100 space-y-1.5">
-                                <div className="flex items-center justify-between">
-                                  <p className="text-[11px] font-bold text-gray-600">📎 {isJa ? '添付ファイル' : 'Tải file từ máy tính'}</p>
-                                  <label className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] px-2.5 py-1 rounded font-bold cursor-pointer shadow-sm">
-                                    {isJa ? '+ ファイル選択' : '+ Chọn file'}
-                                    <input 
-                                      type="file" 
-                                      onChange={(e) => handleFileUpload(task.id, e)} 
-                                      className="hidden" 
-                                    />
-                                  </label>
-                                </div>
-
+                                <p className="text-[11px] font-bold text-gray-600">📎 {isJa ? '添付資料' : 'Tài liệu / Link đính kèm'}</p>
                                 {task.attachments && task.attachments.length > 0 ? (
-                                  <div className="space-y-1 pt-1">
+                                  <div className="space-y-1">
                                     {task.attachments.map(att => (
                                       <div key={att.id} className="flex items-center justify-between text-xs bg-gray-50 px-2 py-1 rounded border border-gray-100 group">
-                                        <a href={att.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline truncate pr-2 max-w-[190px]" title={att.name}>
+                                        <a href={att.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline truncate pr-2 max-w-[170px]" title={att.name}>
                                           📄 {att.name}
                                         </a>
                                         <button type="button" onClick={() => handleDeleteAttachment(task.id, att.id)} className="text-gray-400 hover:text-red-500 text-[10px]">✕</button>
@@ -651,8 +631,34 @@ function MainApp({ user, onLogout }) {
                                     ))}
                                   </div>
                                 ) : (
-                                  <p className="text-[10px] text-gray-400 italic">{isJa ? 'ファイルなし' : 'Chưa có file đính kèm'}</p>
+                                  <p className="text-[10px] text-gray-400 italic">{isJa ? '資料なし' : 'Chưa có file nào'}</p>
                                 )}
+
+                                <div className="space-y-1 pt-1">
+                                  <input 
+                                    type="text" 
+                                    placeholder={isJa ? '資料名 (例: 契約書)' : 'Tên tài liệu (VD: Hợp đồng)'} 
+                                    value={attNameInputs[task.id] || ''} 
+                                    onChange={(e) => setAttNameInputs({ ...attNameInputs, [task.id]: e.target.value })} 
+                                    className="w-full text-[11px] border border-gray-200 rounded px-2 py-1 focus:outline-none" 
+                                  />
+                                  <div className="flex gap-1">
+                                    <input 
+                                      type="text" 
+                                      placeholder="URL (https://...)" 
+                                      value={attUrlInputs[task.id] || ''} 
+                                      onChange={(e) => setAttUrlInputs({ ...attUrlInputs, [task.id]: e.target.value })} 
+                                      className="w-full text-[11px] border border-gray-200 rounded px-2 py-1 focus:outline-none" 
+                                    />
+                                    <button 
+                                      type="button" 
+                                      onClick={() => handleAddAttachment(task.id)}
+                                      className="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] px-3 py-1 rounded font-bold shrink-0 shadow-sm"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                </div>
                               </div>
 
                               <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
