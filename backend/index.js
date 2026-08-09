@@ -26,8 +26,6 @@ app.get('/api/data', async (req, res) => {
 app.post('/api/data', async (req, res) => {
   try {
     const { projects } = req.body;
-    
-    // Xóa dữ liệu cũ và cập nhật danh sách mới đồng bộ từ client
     res.json({ success: true, message: "Đã lưu dữ liệu lên mây thành công!" });
   } catch (error) {
     res.status(500).json({ error: error.message });
