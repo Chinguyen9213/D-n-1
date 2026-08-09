@@ -4,10 +4,66 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script src="https://cdn.tailwindcss.com"></script>
-    <title>Project Tracker</title>
+    <title>Project Tracker & AI Bot</title>
   </head>
-  <body>
+  <body class="bg-gray-50 text-gray-800">
+    <!-- Nơi React render ứng dụng gốc của bạn -->
     <div id="root"></div>
+
+    <!-- KHU VỰC TÍCH HỢP TRỢ LÝ AI (Giữ nguyên nền tảng Tailwind và HTML) -->
+    <div class="max-w-md mx-auto mt-10 p-6 bg-white shadow-lg rounded-xl border border-gray-100">
+      <h3 class="font-bold text-lg mb-3 text-gray-900 flex items-center gap-2">
+        <span>🤖</span> Trợ lý AI Bóc tách Công việc
+      </h3>
+      <input 
+        type="text" 
+        id="userInput" 
+        placeholder="Nhập yêu cầu (VD: Nhắc Anh Take chuẩn bị...)" 
+        class="border border-gray-300 p-2.5 w-full rounded-lg mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" 
+      />
+      <button 
+        onclick="sendTaskToBot()" 
+        class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2.5 rounded-lg w-full transition duration-200 text-sm shadow-sm">
+        Gửi cho Bot
+      </button>
+      <div id="botResult" class="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs font-mono text-gray-700 whitespace-pre-wrap min-h-[50px]">
+        Chờ lệnh từ bạn...
+      </div>
+    </div>
+
+    <!-- Script xử lý kết nối API gửi nhận dữ liệu với Backend trên Render -->
+    <script>
+      async function sendTaskToBot() {
+        const text = document.getElementById('userInput').value;
+        const resultDiv = document.getElementById('botResult');
+        
+        if (!text.trim()) {
+          resultDiv.innerHTML = "⚠️ Vui lòng nhập nội dung cần nhắc nhở!";
+          return;
+        }
+
+        resultDiv.innerHTML = "⏳ Đang gửi yêu cầu đến AI...";
+
+        try {
+          const response = await fetch('/api/ai/parse-task', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text })
+          });
+          
+          if (!response.ok) {
+            throw new Error(`Lỗi kết nối server: ${response.status}`);
+          }
+
+          const data = await response.json();
+          resultDiv.innerHTML = "<b>✨ Kết quả AI trả về:</b>\n" + JSON.stringify(data, null, 2);
+        } catch (error) {
+          resultDiv.innerHTML = "❌ Lỗi: " + error.message;
+        }
+      }
+    </script>
+
+    <!-- Giữ nguyên điểm neo gốc của React -->
     <script type="module" src="./src/main.jsx"></script>
   </body>
 </html>
