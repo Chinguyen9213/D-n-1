@@ -8,7 +8,7 @@ const PRIORITIES = {
   LOW: { labelVi: '✅ Thấp', labelJa: '✅ 低', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' }
 };
 
-// --- TRỢ LÝ AI v4.1 (Đã sửa lỗi xử lý link Google Sheets & Tự động bóc tách chuẩn F&B) ---
+// --- TRỢ LÝ AI v4.2 (Đã cải tiến nhận diện link & file trực quan) ---
 function AiAssistant({ onConfirmTask, isJa }) {
   const [inputContent, setInputContent] = useState('');
   const [loading, setLoading] = useState(false);
@@ -17,8 +17,8 @@ function AiAssistant({ onConfirmTask, isJa }) {
   const [chatHistory, setChatHistory] = useState([
     {
       sender: 'ai',
-      textVi: 'Xin chào Chi! Tôi là Trợ lý AI phân tích task. Nếu bạn dán link Google Sheets hoặc tải file kế hoạch mở nhà hàng, tôi sẽ tự động bóc tách thành các hạng mục công việc chi tiết để bạn kiểm tra trước khi đưa vào Kanban nhé!',
-      textJa: 'こんにちは！AIタスク分析アシスタントです。スプレッドシートのリンクやファイルをアップロードしていただければ、詳細なタスク項目に分解して確認画面を表示します。'
+      textVi: 'Xin chào Chi! Tôi là Trợ lý AI phân tích task. Bạn có thể dán link Google Sheets kế hoạch hoặc bấm nút "Gửi file" để tôi tự động bóc tách thành các hạng mục công việc chi tiết cho nhà hàng nhé!',
+      textJa: 'こんにちは！AIタスク分析アシスタントです。スプレッドシートのリンクやファイルをアップロードしていただければ、詳細なタスク項目に分解します！'
     }
   ]);
 
@@ -44,29 +44,31 @@ function AiAssistant({ onConfirmTask, isJa }) {
       let aiMsgVi = '';
       let aiMsgJa = '';
 
-      if (attachedFile || userText.includes('http://') || userText.includes('https://')) {
-        // Trường hợp người dùng gửi Link hoặc File
-        const sourceName = attachedFile ? attachedFile.name : 'Google Sheets kế hoạch mở nhà hàng';
-        aiMsgVi = `🤖 Tôi nhận thấy bạn đang gửi link/tài liệu kế hoạch (**${sourceName}**). Do bảo mật trình duyệt không tự đọc trực tiếp nội dung bên trong link được, tôi đã tự động bóc tách các hạng mục tiêu chuẩn cho dự án mở nhà hàng (F&B) dưới đây. Bạn kiểm tra và bấm xác nhận nhé!`;
-        aiMsgJa = `🤖 リンクまたはファイル (**${sourceName}**) を検出しました。レストラン開業プロジェクトの標準的なタスク項目に分解しましたので、内容をご確認ください！`;
+      const isLink = userText.toLowerCase().includes('http://') || userText.toLowerCase().includes('https://') || userText.toLowerCase().includes('docs.google.com') || userText.toLowerCase().includes('sheet');
+
+      if (attachedFile || isLink) {
+        const sourceName = attachedFile ? attachedFile.name : (userText.length > 50 ? userText.slice(0, 50) + '...' : userText);
+        aiMsgVi = `🤖 Tôi đã nhận diện đây là tài liệu kế hoạch/link liên kết (**${sourceName}**). Do trình duyệt bảo mật không cho phép đọc trực tiếp dữ liệu bên trong link bảo mật, tôi đã tự động cấu trúc hóa thành **Bộ tiêu chuẩn triển khai Dự án F&B** dưới đây. Bạn kiểm tra và bấm xác nhận nhé!`;
+        aiMsgJa = `🤖 リンクまたはドキュメント (**${sourceName}**) を検出しました。プロジェクトの標準タスクに自動分解しましたのでご確認ください！`;
         
         previewTask = {
-          titleVi: 'Lập kế hoạch tổng thể & Set-up nhà hàng mới',
-          titleJa: '総合計画立案・レストランセットアップ',
+          titleVi: 'Triển khai kế hoạch tổng thể & Set-up nhà hàng',
+          titleJa: '総合プロジェクト計画・店舗セットアップ',
           priority: 'HIGH',
           assignee: 'Chi',
           dueDate: '',
           checklists: [
-            { textVi: 'Khảo sát và chốt mặt bằng nhà hàng', textJa: 'レストラン物件の調査と契約' },
-            { textVi: 'Xin giấy phép vệ sinh an toàn thực phẩm & kinh doanh', textJa: '営業許可証・食品衛生許可の取得' },
-            { textVi: 'Thiết kế không gian & thi công nội thất', textJa: '空間デザイン・内装工事' },
-            { textVi: 'Tuyển dụng & đào tạo nhân sự bếp, phục vụ', textJa: 'キッチン・ホールスタッフの採用と研修' },
-            { textVi: 'Thiết lập menu, định lượng và tìm nguồn nguyên liệu', textJa: 'メニュー開発・原価計算・食材調達' }
+            { textVi: 'Khảo sát, đàm phán & ký hợp đồng thuê mặt bằng', textJa: '物件の調査・交渉・賃貸契約' },
+            { textVi: 'Xin cấp giấy phép kinh doanh & an toàn thực phẩm', textJa: '営業許可証・食品衛生責任者の取得' },
+            { textVi: 'Thiết kế bản vẽ 3D & thi công nội thất trọn gói', textJa: '3Dデザイン設計・内装工事' },
+            { textVi: 'Mua sắm trang thiết bị bếp, bàn ghế, hệ thống POS', textJa: '厨房機器・家具・POSレジの調達' },
+            { textVi: 'Tuyển dụng nhân sự (Bếp, Quản lý, Phục vụ) & Đào tạo', textJa: 'スタッフ採用・トレーニング' },
+            { textVi: 'Chạy thử nghiệm (Soft Opening) & Khai trương chính thức', textJa: 'プレオープン・グランドオープン' }
           ]
         };
         if (attachedFile) setAttachedFile(null);
       } else {
-        aiMsgVi = `💡 Dựa trên yêu cầu của bạn ("${userText}"), tôi đã bóc tách thành các hạng mục cụ thể. Hãy bấm xác nhận nếu bạn đồng ý!`;
+        aiMsgVi = `💡 Dựa trên yêu cầu của bạn ("${userText}"), tôi đã phân tích và bóc tách thành task công việc chi tiết. Hãy bấm xác nhận để đưa vào bảng!`;
         aiMsgJa = `💡 要件「${userText}」に基づき、以下のタスクを分解しました。確認して作成してください。`;
 
         previewTask = {
@@ -76,8 +78,8 @@ function AiAssistant({ onConfirmTask, isJa }) {
           assignee: 'Chi',
           dueDate: '',
           checklists: [
-            { textVi: `Thực hiện: ${userText}`, textJa: `実行: ${userText}` },
-            { textVi: 'Kiểm tra tiến độ và nghiệm thu', textJa: '進捗確認と検収' }
+            { textVi: `Thực hiện hạng mục: ${userText}`, textJa: `実行項目: ${userText}` },
+            { textVi: 'Kiểm tra chất lượng & Báo cáo kết quả', textJa: '品質チェック・結果報告' }
           ]
         };
       }
@@ -99,9 +101,9 @@ function AiAssistant({ onConfirmTask, isJa }) {
     <div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-4 rounded-xl border border-purple-200 shadow-sm space-y-3">
       <div className="flex justify-between items-center">
         <h3 className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
-          💬 {isJa ? 'AI資料分析・タスク自動分解' : 'Trợ Lý AI Phân Tích & Bóc Tách Task Thông Minh v4.1'}
+          💬 {isJa ? 'AI資料分析・タスク自動分解' : 'Trợ Lý AI Phân Tích & Bóc Tách Task Thông Minh v4.2'}
         </h3>
-        <span className="text-[10px] bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full font-semibold">Smart AI v4.1 Link Fix</span>
+        <span className="text-[10px] bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full font-semibold">Smart AI v4.2 Fix</span>
       </div>
 
       <div className="bg-white/90 rounded-lg p-3 max-h-64 overflow-y-auto space-y-3 border border-purple-100 text-xs">
@@ -628,7 +630,7 @@ function MainApp({ user, onLogout }) {
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Trợ lý AI v4.1 */}
+              {/* Trợ lý AI v4.2 */}
               <AiAssistant onConfirmTask={handleConfirmedAiTask} isJa={isJa} />
 
               {(() => {
@@ -686,7 +688,7 @@ function MainApp({ user, onLogout }) {
                 </form>
               </div>
 
-              <div className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex flex-wrap items-center gap-3 justify-between">
+              <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-wrap items-center gap-3 justify-between">
                 <div className="flex flex-wrap items-center gap-2 flex-1">
                   <input
                     type="text"
