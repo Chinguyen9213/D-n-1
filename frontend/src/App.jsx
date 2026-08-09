@@ -8,110 +8,142 @@ const PRIORITIES = {
   LOW: { labelVi: '✅ Thấp', labelJa: '✅ 低', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' }
 };
 
-// --- TRỢ LÝ AI BÓC TÁCH NÂNG CAO (PHÂN TÍCH NGỮ NGHĨA SÂU) ---
-function AiAssistant({ onParsed, isJa }) {
+// --- TRỢ LÝ AI QUẢN LÝ & HỎI ĐÁP BÓC TÁCH CHUYÊN SÂU ---
+function AiAssistant({ onParsed, isJa, existingTasks }) {
   const [inputContent, setInputContent] = useState('');
   const [loading, setLoading] = useState(false);
+  const [chatHistory, setChatHistory] = useState([
+    {
+      sender: 'ai',
+      textVi: 'Chào Chi! Tôi là Trợ lý quản lý thông tin. Bạn muốn bóc tách hạng mục hoặc cần tôi kiểm tra/giải đáp vấn đề gì hôm nay?',
+      textJa: 'こんにちは！情報管理アシスタントです。本日はどの項目を分解または確認・相談しますか？'
+    }
+  ]);
 
-  const handleAiParse = () => {
+  const handleAiManagerDialog = () => {
     if (!inputContent.trim()) return;
-    setLoading(true);
+    const userMsg = inputContent.trim();
     
+    // Đẩy tin nhắn của người dùng vào lịch sử chat
+    const updatedHistory = [...chatHistory, { sender: 'user', textVi: userMsg, textJa: userMsg }];
+    setChatHistory(updatedHistory);
+    setInputContent('');
+    setLoading(true);
+
     setTimeout(() => {
-      const raw = inputContent.trim();
-      const lower = raw.toLowerCase();
+      const lower = userMsg.toLowerCase();
+      let aiReplyVi = '';
+      let aiReplyJa = '';
+      let shouldCreateTask = false;
+      let parsedData = null;
 
-      // 1. Phân tích thông minh Người phụ trách (Assignee)
-      let detectedAssignee = 'Chi';
-      if (lower.includes('take') || lower.includes('anh take')) detectedAssignee = 'Take';
-      else if (lower.includes('chi') || lower.includes('chị')) detectedAssignee = 'Chi';
-      else if (lower.includes('admin') || lower.includes('team')) detectedAssignee = 'Team Admin';
-
-      // 2. Phân tích mức độ ưu tiên (Priority)
-      let detectedPriority = 'MEDIUM';
-      if (lower.includes('ngay') || lower.includes('gấp') || lower.includes('chi phí') || lower.includes('quan trọng') || lower.includes('ngay lập tức')) {
-        detectedPriority = 'HIGH';
-      } else if (lower.includes('khi nào rảnh') || lower.includes('từ từ')) {
-        detectedPriority = 'LOW';
-      }
-
-      // 3. Cô đọng Tiêu đề chính (Title)
-      let titleVi = raw;
-      let titleJa = 'AI解析タスク';
-
-      if (lower.includes('chi phí') || lower.includes('thiết bị')) {
-        titleVi = 'Lập và điền bảng chi phí thiết bị, đồ dùng nhà hàng';
-        titleJa = 'レストランの設備・備品費用の作成と入力';
-      } else if (lower.split('\n')[0].length < 50) {
-        titleVi = raw.split('\n')[0].replace(/^[-*•]\s*/, '');
-        titleJa = titleVi; // Có thể tùy biến dịch giả lập
-      } else {
-        titleVi = 'Xử lý yêu cầu từ ghi chú/email';
-        titleJa = 'メール/議事録からのタスク処理';
-      }
-
-      // 4. Bóc tách checklist hành động chi tiết từ nội dung
-      let checklists = [];
-      const lines = raw.split('\n').filter(l => l.trim().length > 0);
-      
-      if (lines.length > 1) {
-        checklists = lines.map(l => {
-          const cleanText = l.replace(/^[-*•\d.]+\s*/, '');
-          return { textVi: cleanText, textJa: cleanText };
+      // Logic quản lý & hỏi đáp thông minh: 
+      // Nếu yêu cầu liên quan đến thiết bị/chi phí mà chưa rõ thông tin chi tiết, AI sẽ ĐẶT CÂU HỎI LẠI để làm rõ.
+      if (lower.includes('thiết bị') || lower.includes('chi phí') || lower.includes('đồ dùng')) {
+        const hasEquipmentInfo = existingTasks.some(t => {
+          const title = (t.titleVi || '').toLowerCase() + (t.titleJa || '').toLowerCase();
+          return title.includes('thiết bị') || title.includes('danh mục');
         });
-      } else {
-        // Nếu chỉ là 1 câu ngắn, AI tự động tách ý thành các bước hành động cụ thể
-        if (lower.includes('chi phí')) {
-          checklists = [
-            { textVi: 'Kiểm kê lại danh mục thiết bị thực tế', textJa: '実際の設備リストを確認する' },
-            { textVi: 'Cập nhật đơn giá thị trường mới nhất', textJa: '最新の市場単価を更新する' },
-            { textVi: 'Điền hoàn thiện vào bảng chi phí và gửi duyệt', textJa: '費用表に入力して承認を依頼する' }
-          ];
+
+        if (!hasEquipmentInfo && !lower.includes('đã có') && !lower.includes('danh sách')) {
+          aiReplyVi = '🤔 Tôi kiểm tra thấy hệ thống chưa có dữ liệu chi tiết về danh mục thiết bị này. Trước khi lập chi phí, bạn đã có sẵn danh sách thiết bị hay định mức ngân sách dự kiến chưa? Hãy cho tôi biết để tôi tối ưu quy trình nhé!';
+          aiReplyJa = '🤔 システムにこの設備の詳細データがまだ登録されていません。費用を算出する前に、すでに設備リストや想定予算はお決まりですか？教えていただけますか？';
         } else {
-          checklists = [
-            { textVi: `Thực hiện nội dung: ${raw}`, textJa: `内容を実行: ${raw}` },
-            { textVi: 'Kiểm tra và báo cáo kết quả', textJa: '結果を確認して報告する' }
-          ];
+          aiReplyVi = '✅ Tôi đã nắm được thông tin. Dựa trên dữ liệu hệ thống, tôi đã bóc tách thành các bước: Kiểm tra thông tin ➔ Lập danh mục ➔ Tìm NCC ➔ Điền chi phí. Bạn có muốn tôi tạo ngay task này vào bảng Kanban không?';
+          aiReplyJa = '✅ 情報を確認しました。システムデータに基づき「情報確認 ➔ リスト化 ➔ NCC選定 ➔ 費用入力」のステップに分解しました。Kanbanボードにタスクを作成しますか？';
+          
+          shouldCreateTask = true;
+          parsedData = {
+            titleVi: 'Hoàn thiện chi phí & danh mục thiết bị',
+            titleJa: '設備費用・リストの完了',
+            priority: 'HIGH',
+            assignee: 'Chi',
+            checklists: [
+              { textVi: 'Kiểm tra đối chiếu dữ liệu thiết bị hiện có', textJa: '既存の設備データの突合確認' },
+              { textVi: 'Lập danh mục chi tiết các trang thiết bị', textJa: '必要な設備・備品の詳細リストを作成する' },
+              { textVi: 'Liên hệ Nhà cung cấp (NCC) lấy báo giá', textJa: 'サプライヤー（NCC）に連絡し見積もりを取得する' },
+              { textVi: 'Hoàn thiện bảng chi phí và trình phê duyệt', textJa: '費用表を完成させ承認に回す' }
+            ]
+          };
         }
+      } else {
+        // Trường hợp tổng quát: AI đóng vai trò quản lý giải đáp và hỏi thêm chi tiết
+        aiReplyVi = `💡 Tôi ghi nhận yêu cầu: "${userMsg}". Để bóc tách công việc này một cách chính xác nhất, bạn muốn giao việc này cho ai và hạn chót (deadline) hoàn thành là khi nào?`;
+        aiReplyJa = `💡 要件「${userMsg}」を受け付けました。正確に分解するために、担当者は誰にし、期限はいつにしますか？`;
+        
+        shouldCreateTask = true;
+        parsedData = {
+          titleVi: userMsg,
+          titleJa: userMsg,
+          priority: 'MEDIUM',
+          assignee: 'Chi',
+          checklists: [
+            { textVi: `Thực hiện hạng mục: ${userMsg}`, textJa: `実行項目: ${userMsg}` },
+            { textVi: 'Kiểm tra và báo cáo kết quả tiến độ', textJa: '進捗結果を確認し報告する' }
+          ]
+        };
       }
 
-      onParsed({
-        titleVi,
-        titleJa,
-        priority: detectedPriority,
-        assignee: detectedAssignee,
-        checklists
-      });
-
+      setChatHistory([
+        ...updatedHistory,
+        { sender: 'ai', textVi: aiReplyVi, textJa: aiReplyJa }
+      ]);
       setLoading(false);
-      setInputContent('');
-      alert(isJa ? 'AIが文章を深く分析し、タスクとチェックリストを分解しました！' : '🤖 AI đã phân tích sâu nội dung, bóc tách thành công việc và các bước checklist chi tiết!');
-    }, 900);
+
+      if (shouldCreateTask && parsedData && (userMsg.includes('tạo') || userMsg.includes('rồi') || !aiReplyVi.includes('🤔'))) {
+        onParsed(parsedData);
+      }
+    }, 1000);
   };
 
   return (
-    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-200 shadow-sm space-y-3">
+    <div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-4 rounded-xl border border-purple-200 shadow-sm space-y-3">
       <div className="flex justify-between items-center">
-        <h3 className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
-          🤖 {isJa ? 'AIアシスタント (高度タスク分解)' : 'Trợ lý AI Bóc Tách Công Việc Chuyên Sâu'}
+        <h3 className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
+          💬 {isJa ? 'AI情報管理・対話アシスタント' : 'Trợ Lý Quản Lý Thông Tin & Đối Thoại Chuyên Sâu'}
         </h3>
-        <span className="text-[10px] bg-blue-200 text-blue-800 px-2 py-0.5 rounded-full font-semibold">Smart AI v2.0</span>
+        <span className="text-[10px] bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full font-semibold">Manager Bot v3.5</span>
       </div>
-      <textarea
-        rows="2"
-        placeholder={isJa ? 'ここに文章や議事録を貼り付けてください...' : 'Dán nội dung email, ghi chú hoặc cuộc họp vào đây để AI tự động phân tích sâu...'}
-        value={inputContent}
-        onChange={(e) => setInputContent(e.target.value)}
-        className="w-full text-xs border border-blue-200 rounded-lg p-2.5 focus:outline-none focus:border-blue-500 bg-white"
-      />
-      <div className="flex justify-end">
+
+      {/* Khung lịch sử trò chuyện đối thoại */}
+      <div className="bg-white/80 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2 border border-purple-100 text-xs">
+        {chatHistory.map((chat, idx) => (
+          <div key={idx} className={`flex ${chat.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[85%] p-2.5 rounded-xl ${
+              chat.sender === 'user' 
+                ? 'bg-purple-600 text-white rounded-br-none' 
+                : 'bg-purple-100/80 text-purple-900 rounded-bl-none border border-purple-200'
+            }`}>
+              <p className="leading-relaxed">{isJa ? (chat.textJa || chat.textVi) : (chat.textVi || chat.textJa)}</p>
+            </div>
+          </div>
+        ))}
+        {loading && (
+          <div className="flex justify-start">
+            <div className="bg-purple-100 text-purple-700 p-2 rounded-xl text-[11px] italic animate-pulse">
+              {isJa ? 'AIが考え中...' : '🤖 AI đang phân tích và tổng hợp thông tin...'}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Ô nhập liệu để chat trao đổi với AI */}
+      <div className="flex gap-2">
+        <input
+          type="text"
+          placeholder={isJa ? 'AIに質問・指示を入力...' : 'Nhập thông tin, phản hồi câu hỏi hoặc yêu cầu bóc tách với AI...'}
+          value={inputContent}
+          onChange={(e) => setInputContent(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleAiManagerDialog(); }}
+          className="flex-1 text-xs border border-purple-200 rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 bg-white"
+        />
         <button
           type="button"
-          onClick={handleAiParse}
+          onClick={handleAiManagerDialog}
           disabled={loading}
-          className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-5 py-2 rounded-lg shadow-sm transition flex items-center gap-1.5"
+          className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-sm transition shrink-0"
         >
-          {loading ? (isJa ? '分析中...' : '🤖 Đang phân tích sâu...') : (isJa ? 'AI分析＆フォーム入力' : '✨ AI Bóc Tách & Điền Form')}
+          {isJa ? '送信' : 'Gửi trao đổi'}
         </button>
       </div>
     </div>
@@ -288,10 +320,19 @@ function MainApp({ user, onLogout }) {
   };
 
   const handleAiParsedResult = (data) => {
-    setNewTaskTitleVi(data.titleVi);
-    setNewTaskTitleJa(data.titleJa);
-    setNewTaskPriority(data.priority);
-    setNewTaskAssignee(data.assignee || user);
+    const newTask = {
+      id: Date.now(),
+      projectId: currentView,
+      titleVi: data.titleVi,
+      titleJa: data.titleJa,
+      status: 'Cần Làm',
+      priority: data.priority,
+      assignee: data.assignee || user,
+      dueDate: '',
+      checklists: data.checklists.map((c, idx) => ({ id: Date.now() + idx, textVi: c.textVi, textJa: c.textJa, completed: false })),
+      attachments: []
+    };
+    setTasks(prev => [...prev, newTask]);
   };
 
   const handleSaveTaskTitle = (taskId) => {
@@ -439,15 +480,10 @@ function MainApp({ user, onLogout }) {
           <p className="text-sm text-gray-500">{isJa ? 'タスク追跡システム＆チェックリスト総合' : 'Hệ thống theo dõi công việc nâng cao'}</p>
         </div>
         <div className="flex items-center gap-3">
-          <button 
-            onClick={exportData} 
-            className="text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg font-bold shadow-sm transition"
-          >
+          <button onClick={exportData} className="text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg font-bold shadow-sm transition">
             📥 Backup
           </button>
-          <label 
-            className="text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-lg font-bold shadow-sm cursor-pointer transition"
-          >
+          <label className="text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-lg font-bold shadow-sm cursor-pointer transition">
             📤 Restore
             <input type="file" accept=".json" onChange={importData} className="hidden" />
           </label>
@@ -544,8 +580,8 @@ function MainApp({ user, onLogout }) {
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Trợ lý AI Bóc Tách Chuyên Sâu */}
-              <AiAssistant onParsed={handleAiParsedResult} isJa={isJa} />
+              {/* Trợ lý AI Quản Lý & Hỏi Đáp Thông Minh */}
+              <AiAssistant onParsed={handleAiParsedResult} isJa={isJa} existingTasks={currentProjectTasks} />
 
               {(() => {
                 const projChecklists = currentProjectTasks.flatMap(t => t.checklists);
