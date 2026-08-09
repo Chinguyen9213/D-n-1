@@ -8,8 +8,8 @@ const PRIORITIES = {
   LOW: { labelVi: '✅ Thấp', labelJa: '✅ 低', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' }
 };
 
-// --- TRỢ LÝ AI HỖ TRỢ UPLOAD FILE VÀ ĐỐI THOẠI BÓC TÁCH CHUYÊN SÂU ---
-function AiAssistant({ onParsed, isJa, existingTasks }) {
+// --- TRỢ LÝ AI VỚI CƠ CHẾ XÁC NHẬN TRƯỚC KHI TẠO TASK & ĐÍNH KÈM FILE ---
+function AiAssistant({ onConfirmTask, isJa }) {
   const [inputContent, setInputContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [attachedFile, setAttachedFile] = useState(null);
@@ -17,8 +17,8 @@ function AiAssistant({ onParsed, isJa, existingTasks }) {
   const [chatHistory, setChatHistory] = useState([
     {
       sender: 'ai',
-      textVi: 'Chào bạn! Tôi là Trợ lý AI phân tích chuyên sâu. Bạn có thể nhập yêu cầu hoặc tải lên file tài liệu (PDF, Word, Excel, hình ảnh ghi chú...) để tôi đọc và bóc tách task tự động nhé!',
-      textJa: 'こんにちは！AI詳細分析アシスタントです。ご要望の入力や、資料ファイル（PDF、Word、Excel、画像等）をアップロードして、タスクを自動分解させることができます！'
+      textVi: 'Xin chào Chi! Tôi là Trợ lý AI phân tích và bóc tách task. Bạn có thể nhập yêu cầu hoặc đính kèm file tài liệu (PDF, Word, Excel, ảnh...). Tôi sẽ phân tích và hiển thị bản xem trước để bạn **Xác nhận** trước khi đưa vào Kanban nhé!',
+      textJa: 'こんにちは！AIタスク分析アシスタントです。要望の入力や資料ファイルの添付をしていただければ、確認画面を表示してからKanbanボードに追加します。'
     }
   ]);
 
@@ -26,113 +26,148 @@ function AiAssistant({ onParsed, isJa, existingTasks }) {
     const file = e.target.files[0];
     if (!file) return;
     setAttachedFile(file);
-    // Tự động thêm thông báo vào khung chat để người dùng thấy đã đính kèm file
-    setChatHistory(prev => [
-      ...prev,
-      { 
-        sender: 'user', 
-        textVi: `📎 Đã đính kèm tài liệu: ${file.name}`, 
-        textJa: `📎 資料を添付しました: ${file.name}` 
-      }
-    ]);
   };
 
-  const handleAiManagerDialog = () => {
+  const handleSendMessage = () => {
     if (!inputContent.trim() && !attachedFile) return;
-    const userMsg = inputContent.trim() || (attachedFile ? `Phân tích tài liệu: ${attachedFile.name}` : '');
+    const userText = inputContent.trim();
+    const fileName = attachedFile ? attachedFile.name : '';
     
-    if (inputContent.trim()) {
-      setChatHistory(prev => [...prev, { sender: 'user', textVi: userMsg, textJa: userMsg }]);
-    }
+    // Thêm tin nhắn người dùng vào lịch sử
+    const displayMsg = userText + (fileName ? ` (📎 Đính kèm: ${fileName})` : '');
+    setChatHistory(prev => [...prev, { sender: 'user', textVi: displayMsg, textJa: displayMsg }]);
     
     setInputContent('');
     setLoading(true);
 
-    // Giả lập quá trình AI đọc nội dung file hoặc text và bóc tách thông minh
+    // Giả lập AI phân tích và tạo bản xem trước (chưa tạo task vội vào Kanban)
     setTimeout(() => {
-      const fileName = attachedFile ? attachedFile.name.toLowerCase() : '';
-      let aiReplyVi = '';
-      let aiReplyJa = '';
-      let parsedData = null;
+      let previewTask = {};
+      let aiMsgVi = '';
+      let aiMsgJa = '';
 
       if (attachedFile) {
-        aiReplyVi = `🤖 Tôi đã đọc và phân tích thành công nội dung từ file **"${attachedFile.name}"**. Tôi đã tự động bóc tách tài liệu này thành các hạng mục công việc cụ thể dưới đây và đẩy vào bảng Kanban cho bạn!`;
-        aiReplyJa = `🤖 ファイル **"${attachedFile.name}"** の内容を正常に読み込み、分析しました。自動的に詳細なタスクに分解してKanbanボードに追加しました！`;
+        aiMsgVi = `🤖 Tôi đã đọc file **"${fileName}"**. Dưới đây là đề xuất bóc tách task. Bạn hãy kiểm tra xem đã hợp lý chưa trước khi bấm "Xác Nhận Tạo Task"!`;
+        aiMsgJa = `🤖 ファイル **"${fileName}"** を読み込みました。提案するタスク内容を確認し、「タスクを作成」ボタンを押してください。`;
         
-        parsedData = {
-          titleVi: `Bóc tách từ tài liệu: ${attachedFile.name}`,
-          titleJa: `ファイル分析タスク: ${attachedFile.name}`,
+        previewTask = {
+          titleVi: `Xử lý tài liệu: ${fileName}`,
+          titleJa: `資料処理: ${fileName}`,
           priority: 'HIGH',
           assignee: 'Chi',
+          dueDate: '',
           checklists: [
-            { textVi: `Đọc hiểu và tóm tắt yêu cầu từ ${attachedFile.name}`, textJa: `${attachedFile.name} からの要件の読み込みと整理` },
-            { textVi: 'Lập kế hoạch thực hiện theo đúng mốc thời gian trong tài liệu', textJa: '資料内のスケジュールに基づいた実行計画の策定' },
-            { textVi: 'Phân công nhân sự thực hiện từng phần việc', textJa: '各セクションの担当者の割り当て' },
-            { textVi: 'Kiểm tra, nghiệm thu và báo cáo kết quả', textJa: '成果物の確認・検収・報告' }
+            { textVi: `Đọc và nắm nội dung từ ${fileName}`, textJa: `${fileName} の内容確認と理解` },
+            { textVi: 'Thực hiện các công việc yêu cầu trong tài liệu', textJa: '資料内の要件に基づく実行' },
+            { textVi: 'Kiểm tra và hoàn thiện', textJa: '確認と完了' }
           ]
         };
-        setAttachedFile(null); // Reset file sau khi xử lý xong
+        setAttachedFile(null);
       } else {
-        aiReplyVi = `💡 Tôi đã xử lý yêu cầu: "${userMsg}". Dựa trên nội dung này, tôi đã tạo các checklist hành động chi tiết để bạn dễ dàng theo dõi tiến độ.`;
-        aiReplyJa = `💡 要件「${userMsg}」を処理しました。これに基づき、進捗管理用の詳細なチェックリストを作成しました。`;
-        
-        parsedData = {
-          titleVi: userMsg,
-          titleJa: userMsg,
-          priority: 'MEDIUM',
-          assignee: 'Chi',
+        // Phân tích thông minh dựa trên text người dùng nhập
+        aiMsgVi = `💡 Dựa trên yêu cầu của bạn ("${userText}"), tôi đã bóc tách ra các hạng mục cụ thể dưới đây. Hãy bấm xác nhận nếu bạn đồng ý!`;
+        aiMsgJa = `💡 要件「${userText}」に基づき、以下のタスクを分解しました。確認して作成してください。`;
+
+        previewTask = {
+          titleVi: userText.length > 40 ? userText.slice(0, 40) + '...' : userText,
+          titleJa: userText.length > 40 ? userText.slice(0, 40) + '...' : userText,
+          priority: userText.toLowerCase().includes('gấp') || userText.toLowerCase().includes('cao') ? 'HIGH' : 'MEDIUM',
+          assignee: userText.toLowerCase().includes('take') ? 'Take' : 'Chi',
+          dueDate: '',
           checklists: [
-            { textVi: `Khảo sát và chuẩn bị tài nguyên cho: ${userMsg}`, textJa: `${userMsg} のリソース調査と準備` },
-            { textVi: 'Triển khai chi tiết từng bước theo yêu cầu', textJa: '要件に応じたステップごとの詳細実行' },
-            { textVi: 'Đánh giá chất lượng và hoàn tất công việc', textJa: '品質評価とタスクの完了' }
+            { textVi: `Thực hiện: ${userText}`, textJa: `実行: ${userText}` },
+            { textVi: 'Kiểm tra tiến độ và báo cáo', textJa: '進捗確認と報告' }
           ]
         };
       }
 
       setChatHistory(prev => [
         ...prev,
-        { sender: 'ai', textVi: aiReplyVi, textJa: aiReplyJa }
+        { 
+          sender: 'ai', 
+          textVi: aiMsgVi, 
+          textJa: aiMsgJa, 
+          previewTask: previewTask // Gắn bản xem trước vào tin nhắn AI để người dùng bấm xác nhận
+        }
       ]);
       setLoading(false);
-
-      if (parsedData) {
-        onParsed(parsedData);
-      }
-    }, 1200);
+    }, 1000);
   };
 
   return (
     <div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-4 rounded-xl border border-purple-200 shadow-sm space-y-3">
       <div className="flex justify-between items-center">
         <h3 className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
-          💬 {isJa ? 'AI資料分析・タスク自動分解アシスタント' : 'Trợ Lý AI Phân Tích Tài Liệu & Bóc Tách Task Chuyên Sâu'}
+          💬 {isJa ? 'AI資料分析・タスク自動分解（要確認）' : 'Trợ Lý AI Bóc Tách Task (Có Xác Nhận Trước Khi Tạo)'}
         </h3>
-        <span className="text-[10px] bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full font-semibold">Smart AI v3.8 Multi-modal</span>
+        <span className="text-[10px] bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full font-semibold">Smart AI v4.0 Secure</span>
       </div>
 
       {/* Lịch sử chat đối thoại */}
-      <div className="bg-white/90 rounded-lg p-3 max-h-52 overflow-y-auto space-y-2.5 border border-purple-100 text-xs">
+      <div className="bg-white/90 rounded-lg p-3 max-h-64 overflow-y-auto space-y-3 border border-purple-100 text-xs">
         {chatHistory.map((chat, idx) => (
-          <div key={idx} className={`flex ${chat.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] p-2.5 rounded-xl leading-relaxed ${
+          <div key={idx} className={`flex flex-col ${chat.sender === 'user' ? 'items-end' : 'items-start'}`}>
+            <div className={`max-w-[90%] p-2.5 rounded-xl leading-relaxed ${
               chat.sender === 'user' 
                 ? 'bg-purple-600 text-white rounded-br-none shadow-sm' 
-                : 'bg-purple-100/80 text-purple-900 rounded-bl-none border border-purple-200'
+                : 'bg-purple-100/90 text-purple-900 rounded-bl-none border border-purple-200'
             }`}>
               <p>{isJa ? (chat.textJa || chat.textVi) : (chat.textVi || chat.textJa)}</p>
             </div>
+
+            {/* Nếu tin nhắn AI có kèm previewTask thì hiện khung Xác Nhận */}
+            {chat.previewTask && (
+              <div className="mt-2 bg-white border-2 border-purple-300 rounded-xl p-3 shadow-md w-full max-w-md space-y-2">
+                <p className="text-[11px] font-bold text-purple-800 uppercase tracking-wide">🔍 Bản xem trước task sẽ được tạo:</p>
+                <div className="bg-gray-50 p-2.5 rounded-lg border border-gray-200 space-y-1 text-xs">
+                  <p><strong>Tên:</strong> {chat.previewTask.titleVi}</p>
+                  <p><strong>Người phụ trách:</strong> {chat.previewTask.assignee}</p>
+                  <p><strong>Mức ưu tiên:</strong> {chat.previewTask.priority}</p>
+                  <div>
+                    <p className="font-semibold text-gray-600 mt-1">Checklist mục con:</p>
+                    <ul className="list-disc pl-4 text-gray-600 text-[11px]">
+                      {chat.previewTask.checklists.map((c, i) => (
+                        <li key={i}>{c.textVi}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Xóa hoặc ẩn bản preview này bằng cách cập nhật chatHistory
+                      setChatHistory(prev => prev.map((item, i) => i === idx ? { ...item, previewTask: null, textVi: item.textVi + ' (Đã hủy tạo task)' } : item));
+                    }}
+                    className="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs px-3 py-1.5 rounded-lg font-bold transition"
+                  >
+                    ❌ Hủy bỏ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onConfirmTask(chat.previewTask);
+                      setChatHistory(prev => prev.map((item, i) => i === idx ? { ...item, previewTask: null, textVi: item.textVi + ' ✅ (Đã tạo thành công task vào bảng Kanban!)' } : item));
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-4 py-1.5 rounded-lg font-bold shadow-sm transition"
+                  >
+                    ✅ Xác Nhận Tạo Task
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ))}
         {loading && (
           <div className="flex justify-start">
             <div className="bg-purple-100 text-purple-700 p-2 rounded-xl text-[11px] italic animate-pulse">
-              {isJa ? 'AIがファイルを読み込み、タスクを分解中...' : '🤖 Trợ lý AI đang đọc file, phân tích sâu và tạo task...'}
+              {isJa ? 'AIが分析中...' : '🤖 Trợ lý AI đang đọc và phân tích yêu cầu...'}
             </div>
           </div>
         )}
       </div>
 
-      {/* Hiển thị file đang đính kèm chờ gửi */}
+      {/* Hiển thị file đang đính kèm */}
       {attachedFile && (
         <div className="flex items-center justify-between bg-white px-3 py-1.5 rounded-lg border border-purple-300 text-xs">
           <span className="text-purple-700 font-semibold truncate">📎 Đã chọn file: {attachedFile.name}</span>
@@ -140,7 +175,7 @@ function AiAssistant({ onParsed, isJa, existingTasks }) {
         </div>
       )}
 
-      {/* Khung nhập nội dung & nút Upload file */}
+      {/* Khung nhập nội dung & nút Upload file tích hợp sẵn */}
       <div className="flex gap-2 items-center">
         <label className="cursor-pointer bg-white hover:bg-purple-50 border border-purple-300 text-purple-700 text-xs font-bold px-3 py-2 rounded-lg shadow-sm flex items-center gap-1 shrink-0 transition" title="Tải file tài liệu lên">
           📎 {isJa ? 'ファイル添付' : 'Gửi file'}
@@ -149,20 +184,20 @@ function AiAssistant({ onParsed, isJa, existingTasks }) {
         
         <input
           type="text"
-          placeholder={isJa ? 'AIに指示を入力するか、ファイルを送信...' : 'Nhập yêu cầu bóc tách hoặc gửi kèm file tài liệu...'}
+          placeholder={isJa ? 'AIに指示を入力するかファイルを添付...' : 'Nhập yêu cầu hoặc gửi kèm file tài liệu để AI phân tích...'}
           value={inputContent}
           onChange={(e) => setInputContent(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') handleAiManagerDialog(); }}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleSendMessage(); }}
           className="flex-1 text-xs border border-purple-200 rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 bg-white shadow-inner"
         />
         
         <button
           type="button"
-          onClick={handleAiManagerDialog}
+          onClick={handleSendMessage}
           disabled={loading}
           className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-sm transition shrink-0"
         >
-          {isJa ? '分析してタスク化' : 'Bóc Tách Task'}
+          {isJa ? '送信する' : 'Gửi yêu cầu'}
         </button>
       </div>
     </div>
@@ -339,7 +374,8 @@ function MainApp({ user, onLogout }) {
     setNewTaskPriority('MEDIUM');
   };
 
-  const handleAiParsedResult = (data) => {
+  // Hàm nhận task sau khi người dùng bấm "Xác Nhận" từ AI Assistant
+  const handleConfirmedAiTask = (data) => {
     const newTask = {
       id: Date.now(),
       projectId: currentView,
@@ -348,7 +384,7 @@ function MainApp({ user, onLogout }) {
       status: 'Cần Làm',
       priority: data.priority,
       assignee: data.assignee || user,
-      dueDate: '',
+      dueDate: data.dueDate || '',
       checklists: data.checklists.map((c, idx) => ({ id: Date.now() + idx, textVi: c.textVi, textJa: c.textJa, completed: false })),
       attachments: []
     };
@@ -600,8 +636,8 @@ function MainApp({ user, onLogout }) {
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Trợ lý AI có hỗ trợ Upload File bóc tách chuyên sâu */}
-              <AiAssistant onParsed={handleAiParsedResult} isJa={isJa} existingTasks={currentProjectTasks} />
+              {/* Trợ lý AI v4.0 có nút đính kèm file và cơ chế xác nhận */}
+              <AiAssistant onConfirmTask={handleConfirmedAiTask} isJa={isJa} />
 
               {(() => {
                 const projChecklists = currentProjectTasks.flatMap(t => t.checklists);
