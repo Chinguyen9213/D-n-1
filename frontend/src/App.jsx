@@ -8,11 +8,70 @@ const PRIORITIES = {
   LOW: { labelVi: '✅ Thấp', labelJa: '✅ 低', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' }
 };
 
+// --- COMPONENT TRỢ LÝ AI BÓC TÁCH CÔNG VIỆC ---
+function AiAssistant({ onParsed, isJa }) {
+  const [inputContent, setInputContent] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleAiParse = () => {
+    if (!inputContent.trim()) return;
+    setLoading(true);
+    // Giả lập quá trình AI phân tích văn bản/ghi chú thô thành task
+    setTimeout(() => {
+      const lines = inputContent.split('\n').filter(l => l.trim().length > 0);
+      const title = lines[0] ? lines[0].replace(/^[-*•]\s*/, '') : (isJa ? 'AIからのタスク' : 'Công việc từ AI');
+      
+      onParsed({
+        titleVi: title,
+        titleJa: title,
+        priority: 'MEDIUM',
+        assignee: 'Chi',
+        checklists: lines.slice(1).map(l => ({
+          textVi: l.replace(/^[-*•]\s*/, ''),
+          textJa: l.replace(/^[-*•]\s*/, '')
+        }))
+      });
+
+      setInputContent('');
+      setLoading(false);
+      alert(isJa ? 'AIがタスクを正常に解析しました！' : 'AI đã bóc tách dữ liệu và điền vào form thành công!');
+    }, 800);
+  };
+
+  return (
+    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-200 shadow-sm space-y-2">
+      <div className="flex justify-between items-center">
+        <h3 className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+          🤖 {isJa ? 'AIアシスタント (タスク自動分解)' : 'Trợ lý AI Bóc Tách Công Việc'}
+        </h3>
+        <span className="text-[10px] bg-blue-200 text-blue-800 px-2 py-0.5 rounded-full font-semibold">Smart AI</span>
+      </div>
+      <textarea
+        rows="2"
+        placeholder={isJa ? 'ここに文章や議事録を貼り付けてください。AIがタスクとチェックリストに分解します...' : 'Dán nội dung email, ghi chú hoặc cuộc họp vào đây để AI tự động phân tích thành tiêu đề và danh sách việc cần làm...'}
+        value={inputContent}
+        onChange={(e) => setInputContent(e.target.value)}
+        className="w-full text-xs border border-blue-200 rounded-lg p-2.5 focus:outline-none focus:border-blue-500 bg-white"
+      />
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={handleAiParse}
+          disabled={loading}
+          className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-1.5 rounded-lg shadow-sm transition flex items-center gap-1"
+        >
+          {loading ? (isJa ? '解析中...' : 'Đang phân tích...') : (isJa ? '✨ AIで解析してフォームに反映' : '✨ AI Bóc Tách & Điền Form')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function MainApp({ user, onLogout }) {
   const { t, i18n } = useTranslation();
   useLanguageShortcut();
   const isJa = i18n.language && i18n.language.startsWith('ja');
-
+  
   const [projects, setProjects] = useState(() => {
     const saved = localStorage.getItem('kanban_projects');
     if (saved) {
@@ -96,7 +155,7 @@ function MainApp({ user, onLogout }) {
       }
     };
     reader.readAsText(file);
-    e.target.value = null; // Reset input file
+    e.target.value = null;
   };
   // ------------------------------------------
 
@@ -157,7 +216,7 @@ function MainApp({ user, onLogout }) {
   };
 
   const handleAddTask = (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (!newTaskTitleVi.trim() && !newTaskTitleJa.trim()) return;
     const titleVi = newTaskTitleVi.trim() || newTaskTitleJa.trim();
     const titleJa = newTaskTitleJa.trim() || newTaskTitleVi.trim();
@@ -179,6 +238,14 @@ function MainApp({ user, onLogout }) {
     setNewTaskAssignee('');
     setNewTaskDueDate('');
     setNewTaskPriority('MEDIUM');
+  };
+
+  // Callback nhận kết quả từ trợ lý AI để điền vào form thêm task mới
+  const handleAiParsedResult = (data) => {
+    setNewTaskTitleVi(data.titleVi);
+    setNewTaskTitleJa(data.titleJa);
+    setNewTaskPriority(data.priority);
+    setNewTaskAssignee(data.assignee || user);
   };
 
   const handleSaveTaskTitle = (taskId) => {
@@ -326,7 +393,6 @@ function MainApp({ user, onLogout }) {
           <p className="text-sm text-gray-500">{isJa ? 'タスク追跡システム＆チェックリスト総合' : 'Hệ thống theo dõi công việc nâng cao'}</p>
         </div>
         <div className="flex items-center gap-3">
-          {/* NÚT BACKUP & RESTORE */}
           <button 
             onClick={exportData} 
             className="text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg font-bold shadow-sm transition"
@@ -341,7 +407,6 @@ function MainApp({ user, onLogout }) {
             📤 Restore
             <input type="file" accept=".json" onChange={importData} className="hidden" />
           </label>
-
           <span className="text-xs bg-gray-50 border border-gray-200 text-gray-700 px-3 py-1.5 rounded-lg">👤 {user}</span>
           <button onClick={onLogout} className="text-xs text-red-600 hover:bg-red-50 border border-red-200 px-3 py-1.5 rounded-lg font-semibold">Đăng xuất</button>
           <button onClick={toggleLanguage} className="px-3 py-1.5 text-sm font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50 shadow-sm">
@@ -381,6 +446,7 @@ function MainApp({ user, onLogout }) {
               </div>
             ))}
           </div>
+
           <form onSubmit={handleAddProject} className="mt-4 pt-4 border-t border-gray-200 space-y-2">
             <input
               type="text"
@@ -434,6 +500,9 @@ function MainApp({ user, onLogout }) {
             </div>
           ) : (
             <div className="space-y-6">
+              {/* TÍCH HỢP TRỢ LÝ AI Ở ĐÂY */}
+              <AiAssistant onParsed={handleAiParsedResult} isJa={isJa} />
+
               {(() => {
                 const projChecklists = currentProjectTasks.flatMap(t => t.checklists);
                 const projTotal = projChecklists.length;
