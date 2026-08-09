@@ -8,7 +8,7 @@ const PRIORITIES = {
   LOW: { labelVi: '✅ Thấp', labelJa: '✅ 低', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' }
 };
 
-// --- COMPONENT TRỢ LÝ AI BÓC TÁCH CÔNG VIỆC ---
+// --- COMPONENT TRỢ LÝ AI BÓC TÁCH CÔNG VIỆC (ĐÃ SỬA LỖI SYNTAX) ---
 function AiAssistant({ onParsed, isJa }) {
   const [inputContent, setInputContent] = useState('');
   const [loading, setLoading] = useState(false);
@@ -16,7 +16,6 @@ function AiAssistant({ onParsed, isJa }) {
   const handleAiParse = () => {
     if (!inputContent.trim()) return;
     setLoading(true);
-    // Giả lập quá trình AI phân tích văn bản/ghi chú thô thành task
     setTimeout(() => {
       const lines = inputContent.split('\n').filter(l => l.trim().length > 0);
       const title = lines[0] ? lines[0].replace(/^[-*•]\s*/, '') : (isJa ? 'AIからのタスク' : 'Công việc từ AI');
@@ -39,7 +38,7 @@ function AiAssistant({ onParsed, isJa }) {
   };
 
   return (
-    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-200 shadow-sm space-y-2">
+    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-200 shadow-sm space-y-3">
       <div className="flex justify-between items-center">
         <h3 className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
           🤖 {isJa ? 'AIアシスタント (タスク自動分解)' : 'Trợ lý AI Bóc Tách Công Việc'}
@@ -48,7 +47,7 @@ function AiAssistant({ onParsed, isJa }) {
       </div>
       <textarea
         rows="2"
-        placeholder={isJa ? 'ここに文章や議事録を貼り付けてください。AIがタスクとチェックリストに分解します...' : 'Dán nội dung email, ghi chú hoặc cuộc họp vào đây để AI tự động phân tích thành tiêu đề và danh sách việc cần làm...'}
+        placeholder={isJa ? 'ここに文章や議事録を貼り付けてください...' : 'Nhập nội dung cần bóc tách (VD: Nhắc anh Take điền bảng chi phí...)'}
         value={inputContent}
         onChange={(e) => setInputContent(e.target.value)}
         className="w-full text-xs border border-blue-200 rounded-lg p-2.5 focus:outline-none focus:border-blue-500 bg-white"
@@ -58,9 +57,9 @@ function AiAssistant({ onParsed, isJa }) {
           type="button"
           onClick={handleAiParse}
           disabled={loading}
-          className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-1.5 rounded-lg shadow-sm transition flex items-center gap-1"
+          className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-5 py-2 rounded-lg shadow-sm transition flex items-center gap-1.5"
         >
-          {loading ? (isJa ? '解析中...' : 'Đang phân tích...') : (isJa ? '✨ AIで解析してフォームに反映' : '✨ AI Bóc Tách & Điền Form')}
+          {loading ? (isJa ? '送信中...' : 'Đang xử lý...') : (isJa ? 'ボットに送信' : 'Gửi cho Bot')}
         </button>
       </div>
     </div>
@@ -125,7 +124,6 @@ function MainApp({ user, onLogout }) {
   useEffect(() => { localStorage.setItem('kanban_projects', JSON.stringify(projects)); }, [projects]);
   useEffect(() => { localStorage.setItem('kanban_tasks', JSON.stringify(tasks)); }, [tasks]);
 
-  // --- TÍNH NĂNG BACKUP & RESTORE DỮ LIỆU ---
   const exportData = () => {
     const data = JSON.stringify({ projects, tasks }, null, 2);
     const blob = new Blob([data], { type: 'application/json' });
@@ -157,13 +155,10 @@ function MainApp({ user, onLogout }) {
     reader.readAsText(file);
     e.target.value = null;
   };
-  // ------------------------------------------
 
   const [currentView, setCurrentView] = useState('p1');
   const [newProjectNameVi, setNewProjectNameVi] = useState('');
   const [newProjectNameJa, setNewProjectNameJa] = useState('');
-  
-  const [checklistFilter, setChecklistFilter] = useState('all');
   
   const [newTaskTitleVi, setNewTaskTitleVi] = useState('');
   const [newTaskTitleJa, setNewTaskTitleJa] = useState('');
@@ -240,7 +235,6 @@ function MainApp({ user, onLogout }) {
     setNewTaskPriority('MEDIUM');
   };
 
-  // Callback nhận kết quả từ trợ lý AI để điền vào form thêm task mới
   const handleAiParsedResult = (data) => {
     setNewTaskTitleVi(data.titleVi);
     setNewTaskTitleJa(data.titleJa);
@@ -396,13 +390,11 @@ function MainApp({ user, onLogout }) {
           <button 
             onClick={exportData} 
             className="text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg font-bold shadow-sm transition"
-            title="Lưu file backup dữ liệu về máy"
           >
             📥 Backup
           </button>
           <label 
             className="text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-lg font-bold shadow-sm cursor-pointer transition"
-            title="Khôi phục dữ liệu từ file backup"
           >
             📤 Restore
             <input type="file" accept=".json" onChange={importData} className="hidden" />
@@ -500,7 +492,7 @@ function MainApp({ user, onLogout }) {
             </div>
           ) : (
             <div className="space-y-6">
-              {/* TÍCH HỢP TRỢ LÝ AI Ở ĐÂY */}
+              {/* Trợ lý AI Bóc Tách Công Việc */}
               <AiAssistant onParsed={handleAiParsedResult} isJa={isJa} />
 
               {(() => {
