@@ -8,8 +8,8 @@ const PRIORITIES = {
   LOW: { labelVi: '✅ Thấp', labelJa: '✅ 低', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' }
 };
 
-// --- TRỢ LÝ AI v4.3 (Tự động đọc nội dung trực tiếp nếu là URL / Google Sheets) ---[cite: 1]
-function AiAssistant({ onConfirmTask, isJa }) {
+// --- TRỢ LÝ AI CHAT THÔNG THƯỜNG (Đã bỏ tự động bóc tách task) ---
+function AiAssistant({ isJa }) {
   const [inputContent, setInputContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [attachedFile, setAttachedFile] = useState(null);
@@ -17,8 +17,8 @@ function AiAssistant({ onConfirmTask, isJa }) {
   const [chatHistory, setChatHistory] = useState([
     {
       sender: 'ai',
-      textVi: 'Xin chào Chi! Tôi là Trợ lý AI phân tích task v4.3. Bạn có thể dán link Google Sheets hoặc nhập bất kỳ yêu cầu nào, tôi sẽ tự động phân tích và bóc tách thành các hạng mục công việc chi tiết cho bạn!',
-      textJa: 'こんにちは！AIタスク分析アシスタントv4.3です。スプレッドシートのリンクや要件を入力していただければ、詳細なタスク項目に自動分解します！'
+      textVi: 'Xin chào Chi! Tôi là Trợ lý AI trò chuyện. Bạn có thể trao đổi hoặc hỏi bất kỳ thông tin gì tại đây.',
+      textJa: 'こんにちは！AIアシスタントです。何でもお気軽にご質問ください。'
     }
   ]);
 
@@ -40,71 +40,32 @@ function AiAssistant({ onConfirmTask, isJa }) {
     setLoading(true);
 
     setTimeout(() => {
-      let previewTask = {};
-      let aiMsgVi = '';
-      let aiMsgJa = '';
-      const lowerText = userText.toLowerCase();
-      const isLink = lowerText.startsWith('http://') || lowerText.startsWith('https://') || lowerText.includes('docs.google.com') || lowerText.includes('sheet') || lowerText.includes('.com');
-      
-      if (attachedFile || isLink) {
-        const sourceName = attachedFile ? attachedFile.name : userText;
-        aiMsgVi = `🤖 Tôi đã tự động truy cập và phân tích nội dung từ liên kết/tài liệu (**${sourceName}**). Dưới đây là các hạng mục task chi tiết được bóc tách tự động. Bạn kiểm tra và bấm xác nhận nhé!`;
-        aiMsgJa = `🤖 リンクまたはファイル (**${sourceName}**) の内容を正常に読み込み、タスクに分解しました。ご確認ください！`;
-        
-        previewTask = {
-          titleVi: isLink ? `Xử lý & Triển khai từ link: ${userText.slice(0, 30)}...` : `Triển khai từ tài liệu: ${sourceName}`,
-          titleJa: 'リンク・資料に基づくプロジェクト展開',
-          priority: 'HIGH',
-          assignee: 'Chi',
-          dueDate: '',
-          checklists: [
-            { textVi: 'Kiểm tra và đồng bộ dữ liệu từ nguồn liên kết', textJa: 'リンク先データの確認と同期' },
-            { textVi: 'Lập kế hoạch phân bổ công việc chi tiết cho team', textJa: 'チームへの詳細なタスク割り当て計画' },
-            { textVi: 'Tiến hành thực thi các hạng mục trọng tâm', textJa: '主要項目の実行開始' },
-            { textVi: 'Nghiệm thu kết quả & Báo cáo tiến độ', textJa: '結果の検収・進捗報告' }
-          ]
-        };
-        if (attachedFile) setAttachedFile(null);
-      } else {
-        aiMsgVi = `💡 Dựa trên yêu cầu của bạn ("${userText}"), tôi đã phân tích và bóc tách thành task công việc chuẩn xác. Hãy bấm xác nhận để đưa vào bảng Kanban!`;
-        aiMsgJa = `💡 要件「${userText}」に基づき、タスクを分解しました。確認して作成してください。`;
-        
-        previewTask = {
-          titleVi: userText.length > 40 ? userText.slice(0, 40) + '...' : userText,
-          titleJa: userText.length > 40 ? userText.slice(0, 40) + '...' : userText,
-          priority: userText.toLowerCase().includes('gấp') || userText.toLowerCase().includes('ngay') ? 'HIGH' : 'MEDIUM',
-          assignee: 'Chi',
-          dueDate: '',
-          checklists: [
-            { textVi: `Thực hiện hạng mục: ${userText}`, textJa: `実行項目: ${userText}` },
-            { textVi: 'Kiểm tra chất lượng & Báo cáo hoàn thành', textJa: '品質チェック・完了報告' }
-          ]
-        };
-      }
+      const aiReply = `Tôi đã nhận được nội dung của bạn: "${userText}". Bạn có thể sử dụng khung tạo task thủ công phía dưới để thêm công việc chính xác theo ý muốn nhé!`;
+      const aiReplyJa = `メッセージを受け取りました：「${userText}」。下のフォームから手動でタスクを追加してください。`;
 
       setChatHistory(prev => [
         ...prev,
         { 
           sender: 'ai', 
-          textVi: aiMsgVi, 
-          textJa: aiMsgJa, 
-          previewTask: previewTask 
+          textVi: aiReply, 
+          textJa: aiReplyJa 
         }
       ]);
       setLoading(false);
-    }, 1000);
+      if (attachedFile) setAttachedFile(null);
+    }, 800);
   };
 
   return (
     <div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-4 rounded-xl border border-purple-200 shadow-sm space-y-3">
       <div className="flex justify-between items-center">
         <h3 className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
-          💬 {isJa ? 'AI資料分析・タスク自動分解 v4.3' : 'Trợ Lý AI Phân Tích & Bóc Tách Task Thông Minh v4.3'}
+          💬 {isJa ? 'AIアシスタントチャット' : 'Trợ Lý AI Trò Chuyện & Hỗ Trợ'}
         </h3>
-        <span className="text-[10px] bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full font-semibold">Smart AI v4.3 Auto-Read</span>
+        <span className="text-[10px] bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full font-semibold">Chat Mode</span>
       </div>
 
-      <div className="bg-white/90 rounded-lg p-3 max-h-64 overflow-y-auto space-y-3 border border-purple-100 text-xs">
+      <div className="bg-white/90 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2 border border-purple-100 text-xs">
         {chatHistory.map((chat, idx) => (
           <div key={idx} className={`flex flex-col ${chat.sender === 'user' ? 'items-end' : 'items-start'}`}>
             <div className={`max-w-[90%] p-2.5 rounded-xl leading-relaxed ${
@@ -114,53 +75,13 @@ function AiAssistant({ onConfirmTask, isJa }) {
             }`}>
               <p>{isJa ? (chat.textJa || chat.textVi) : (chat.textVi || chat.textJa)}</p>
             </div>
-            
-            {chat.previewTask && (
-              <div className="mt-2 bg-white border-2 border-purple-300 rounded-xl p-3 shadow-md w-full max-w-md space-y-2">
-                <p className="text-[11px] font-bold text-purple-800 uppercase tracking-wide">🔍 Bản xem trước task sẽ được tạo:</p>
-                <div className="bg-gray-50 p-2.5 rounded-lg border border-gray-200 space-y-1 text-xs">
-                  <p><strong>Tên Task:</strong> {chat.previewTask.titleVi}</p>
-                  <p><strong>Phụ trách:</strong> {chat.previewTask.assignee}</p>
-                  <p><strong>Ưu tiên:</strong> {chat.previewTask.priority}</p>
-                  <div>
-                    <p className="font-semibold text-gray-600 mt-1">Checklist mục con:</p>
-                    <ul className="list-disc pl-4 text-gray-600 text-[11px]">
-                      {chat.previewTask.checklists.map((c, i) => (
-                        <li key={i}>{isJa ? c.textJa : c.textVi}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-                <div className="flex justify-end gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setChatHistory(prev => prev.map((item, i) => i === idx ? { ...item, previewTask: null, textVi: item.textVi + ' (Đã hủy)' } : item));
-                    }}
-                    className="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs px-3 py-1.5 rounded-lg font-bold"
-                  >
-                    ❌ Hủy bỏ
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onConfirmTask(chat.previewTask);
-                      setChatHistory(prev => prev.map((item, i) => i === idx ? { ...item, previewTask: null, textVi: item.textVi + ' ✅ (Đã đưa vào bảng Kanban thành công!)' } : item));
-                    }}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-4 py-1.5 rounded-lg font-bold shadow-sm"
-                  >
-                    ✅ Xác Nhận Tạo Task
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         ))}
 
         {loading && (
           <div className="flex justify-start">
             <div className="bg-purple-100 text-purple-700 p-2 rounded-xl text-[11px] italic animate-pulse">
-              🤖 Trợ lý AI đang tự động truy cập và phân tích nội dung link/tài liệu...
+              🤖 AI đang trả lời...
             </div>
           </div>
         )}
@@ -181,7 +102,7 @@ function AiAssistant({ onConfirmTask, isJa }) {
         
         <input
           type="text"
-          placeholder="Dán link (Google Sheets, tài liệu) để AI tự động đọc và bóc tách..."
+          placeholder="Nhập nội dung trao đổi với AI..."
           value={inputContent}
           onChange={(e) => setInputContent(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') handleSendMessage(); }}
@@ -194,14 +115,14 @@ function AiAssistant({ onConfirmTask, isJa }) {
           disabled={loading}
           className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-sm shrink-0"
         >
-          Gửi yêu cầu
+          Gửi
         </button>
       </div>
     </div>
   );
 }
 
-// --- PHẦN MAIN APP ---[cite: 1]
+// --- PHẦN MAIN APP ---
 function MainApp({ user, onLogout }) {
   const { t, i18n } = useTranslation();
   useLanguageShortcut();
@@ -366,22 +287,6 @@ function MainApp({ user, onLogout }) {
     setNewTaskAssignee('');
     setNewTaskDueDate('');
     setNewTaskPriority('MEDIUM');
-  };
-
-  const handleConfirmedAiTask = (data) => {
-    const newTask = {
-      id: Date.now(),
-      projectId: currentView,
-      titleVi: data.titleVi,
-      titleJa: data.titleJa,
-      status: 'Cần Làm',
-      priority: data.priority,
-      assignee: data.assignee || user,
-      dueDate: data.dueDate || '',
-      checklists: data.checklists.map((c, idx) => ({ id: Date.now() + idx, textVi: c.textVi, textJa: c.textJa, completed: false })),
-      attachments: []
-    };
-    setTasks(prev => [...prev, newTask]);
   };
 
   const handleSaveTaskTitle = (taskId) => {
@@ -629,8 +534,8 @@ function MainApp({ user, onLogout }) {
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Trợ lý AI v4.3 */}
-              <AiAssistant onConfirmTask={handleConfirmedAiTask} isJa={isJa} />
+              {/* Trợ lý AI chỉ để chat */}
+              <AiAssistant isJa={isJa} />
 
               {(() => {
                 const projChecklists = currentProjectTasks.flatMap(t => t.checklists);
