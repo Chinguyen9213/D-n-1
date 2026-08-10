@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 
-// --- AGENT 1: Phân tích Ý định & Thực thể ---
 function parseUserIntent(text) {
   const lower = text.toLowerCase();
   let intent = 'CHECK_STATUS';
@@ -13,7 +12,6 @@ function parseUserIntent(text) {
   return { intent, entity };
 }
 
-// --- AGENT 2: Truy xuất Dữ liệu từ mảng tasks ---
 function processAgent2Response(intent, entity, tasks = []) {
   const matchedTasks = tasks.filter(t => {
     const titleVi = (t.titleVi || t.title || '').toLowerCase();
@@ -68,7 +66,7 @@ export default function AiAssistant({ tasks = [], isJa }) {
       sender: 'ai',
       text: isJa 
         ? 'こんにちは！AI進捗アシスタントです。タスクの状況やファイルについて何でも聞いてください（例：「ロゴの進捗は？」）。' 
-        : 'Xin chào Chi! Tôi là Trợ lý AI tra cứu thông tin. Bạn có thể hỏi về tiến độ, trạng thái hoặc tài liệu của bất kỳ task nào (VD: "tiến độ task mặt bằng thế nào?").',
+        : 'Xin chào Chi! Tôi là Trợ lý AI tra cứu thông tin. Bạn có thể hỏi về tiến độ, trạng thái hoặc tài liệu của bất kỳ task nào (VD: "mặt bằng đến đâu rồi?").',
       attachments: []
     }
   ]);
@@ -101,20 +99,18 @@ export default function AiAssistant({ tasks = [], isJa }) {
         }
       ]);
       setIsTyping(false);
-    }, 500);
+    }, 400);
   };
 
   return (
     <div className="bg-white rounded-xl border border-purple-200 shadow-sm flex flex-col h-[480px] overflow-hidden my-4">
-      {/* Header */}
       <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-3 text-white flex justify-between items-center">
         <h3 className="text-xs font-bold flex items-center gap-1.5">
           🤖 {isJa ? 'AI進捗・情報アシスタント' : 'Trợ lý AI Tra Cứu Thông Tin & Tiến Độ'}
         </h3>
-        <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-semibold">Ready</span>
+        <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-semibold">Active</span>
       </div>
 
-      {/* Chat Messages Log */}
       <div className="flex-1 p-3 overflow-y-auto space-y-3 bg-gray-50 text-xs">
         {chatLog.map((msg, idx) => (
           <div key={idx} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
@@ -139,9 +135,6 @@ export default function AiAssistant({ tasks = [], isJa }) {
                 </div>
               )}
             </div>
-            <span className="text-[10px] text-gray-400 mt-1 px-1">
-              {msg.sender === 'user' ? 'Bạn' : 'Trợ lý AI'}
-            </span>
           </div>
         ))}
         {isTyping && (
@@ -154,7 +147,6 @@ export default function AiAssistant({ tasks = [], isJa }) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input form */}
       <form onSubmit={handleSendMessage} className="p-3 bg-white border-t border-purple-100 flex gap-2 items-center">
         <input
           type="text"
