@@ -31,6 +31,7 @@ export default function AiAssistant({ onConfirmTask, isJa }) {
     setInputContent('');
     setLoading(true);
 
+    // Xử lý giả lập AI hoàn toàn nội bộ, không gọi API ngoài tránh lỗi mạng
     setTimeout(() => {
       let previewTask = {};
       let aiMsgVi = '';
