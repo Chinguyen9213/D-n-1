@@ -4,10 +4,10 @@ import React, { useState, useRef, useEffect } from 'react';
 function parseUserIntent(text) {
   const lower = text.toLowerCase();
   let intent = 'CHECK_STATUS';
-  if (lower.includes('file') || lower.includes('link') || lower.includes('tài liệu') || lower.includes('gửi') || lower.includes('tải')) {
+  if (lower.includes('file') || lower.includes('link') || lower.includes('tài liệu') || lower.includes('gửi') || lower.includes('tải') || lower.includes('xem')) {
     intent = 'GET_FILE';
   }
-  const stopWords = ['đã', 'chưa', 'thế nào', 'nào', 'task', 'của', 'vẽ', 'xong', 'kiểm', 'tra', 'tiến', 'độ', 'cho', 'tôi', 'xem', 'file', 'link'];
+  const stopWords = ['đã', 'chưa', 'thế nào', 'nào', 'task', 'của', 'vẽ', 'xong', 'kiểm', 'tra', 'tiến', 'độ', 'cho', 'tôi', 'xem', 'file', 'link', 'ở', 'đâu'];
   const words = lower.split(/\s+/).filter(w => !stopWords.includes(w) && w.length > 1);
   const entity = words.join(' ') || lower;
   return { intent, entity };
@@ -23,7 +23,7 @@ function processAgent2Response(intent, entity, tasks = []) {
 
   if (matchedTasks.length === 0) {
     return {
-      text: `Rất tiếc, tôi không tìm thấy công việc nào khớp với từ khóa "${entity}". Bạn hãy kiểm tra lại tên task nhé!`,
+      text: `Rất tiếc, tôi không tìm thấy công việc nào khớp với từ khóa "${entity}". Bạn hãy kiểm tra lại tên task hoặc thử từ khóa khác nhé!`,
       attachments: []
     };
   }
@@ -49,8 +49,13 @@ function processAgent2Response(intent, entity, tasks = []) {
     }
   });
 
+  let finalReply = responseLines.join('\n\n');
+  if (intent === 'GET_FILE' && allAttachments.length === 0) {
+    finalReply += '\n\n📂 Hiện tại công việc này chưa có file hoặc link đính kèm nào.';
+  }
+
   return {
-    text: responseLines.join('\n\n'),
+    text: finalReply,
     attachments: allAttachments
   };
 }
@@ -62,8 +67,8 @@ export default function AiAssistant({ tasks = [], isJa }) {
     {
       sender: 'ai',
       text: isJa 
-        ? 'こんにちは！AIタスクアシスタントです。タスクの進捗状況について何でも聞いてください（例：「ロゴの進捗は？」）。' 
-        : 'Xin chào Chi! Tôi là Trợ lý AI quản lý tiến độ. Bạn có thể hỏi bất cứ lúc nào (VD: "tiến độ task logo thế nào?").',
+        ? 'こんにちは！AI進捗アシスタントです。タスクの状況やファイルについて何でも聞いてください（例：「ロゴの進捗は？」）。' 
+        : 'Xin chào Chi! Tôi là Trợ lý AI tra cứu thông tin. Bạn có thể hỏi về tiến độ, trạng thái hoặc tài liệu của bất kỳ task nào (VD: "tiến độ task logo thế nào?").',
       attachments: []
     }
   ]);
@@ -93,7 +98,7 @@ export default function AiAssistant({ tasks = [], isJa }) {
           sender: 'ai',
           text: agent2.text,
           attachments: agent2.attachments,
-          debug: `[Agent Parsed] Intent: ${agent1.intent} | Entity: "${agent1.entity}"`
+          debug: `[Parsed] Intent: ${agent1.intent} | Entity: "${agent1.entity}"`
         }
       ]);
       setIsTyping(false);
@@ -101,12 +106,12 @@ export default function AiAssistant({ tasks = [], isJa }) {
   };
 
   return (
-    <div className="bg-white rounded-xl border border-purple-200 shadow-sm flex flex-col h-[450px] overflow-hidden">
+    <div className="bg-white rounded-xl border border-purple-200 shadow-sm flex flex-col h-[480px] overflow-hidden">
       <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-3 text-white flex justify-between items-center">
         <h3 className="text-xs font-bold flex items-center gap-1.5">
-          🤖 {isJa ? 'AIタスク進捗アシスタント' : 'Trợ lý AI Bóc tách & Quản lý Công việc'}
+          🤖 {isJa ? 'AI進捗・情報アシスタント' : 'Trợ lý AI Tra Cứu Thông Tin & Tiến Độ'}
         </h3>
-        <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-semibold">Ready</span>
+        <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-semibold">Active</span>
       </div>
 
       <div className="flex-1 p-3 overflow-y-auto space-y-2.5 bg-gray-50 text-xs">
@@ -129,7 +134,7 @@ export default function AiAssistant({ tasks = [], isJa }) {
                   <p className="font-bold text-[10px] text-gray-600">📎 Tài liệu đính kèm:</p>
                   {msg.attachments.map((att, aIdx) => (
                     <div key={aIdx} className="flex justify-between items-center bg-purple-50 p-1.5 rounded border border-purple-100">
-                      <span className="truncate max-w-[150px]">{att.name}</span>
+                      <span className="truncate max-w-[150px] font-medium">{att.name}</span>
                       <a href={att.url} target="_blank" rel="noreferrer" className="bg-purple-600 text-white px-2 py-0.5 rounded text-[10px] font-bold">
                         Xem/Tải
                       </a>
@@ -143,7 +148,7 @@ export default function AiAssistant({ tasks = [], isJa }) {
         {isTyping && (
           <div className="flex justify-start">
             <div className="bg-purple-100 text-purple-700 p-2 rounded-xl text-[11px] italic animate-pulse">
-              🤖 AI đang truy xuất dữ liệu task...
+              🤖 AI đang tra cứu dữ liệu task...
             </div>
           </div>
         )}
@@ -153,13 +158,13 @@ export default function AiAssistant({ tasks = [], isJa }) {
       <form onSubmit={handleSendMessage} className="p-3 bg-white border-t border-purple-100 flex gap-2">
         <input
           type="text"
-          placeholder={isJa ? "タスクについて質問する..." : "Hỏi AI (VD: 'tiến độ task logo', 'trạng thái bảng giá')..."}
+          placeholder={isJa ? "タスクについて質問する..." : "Hỏi AI (VD: 'tiến độ task logo thế nào?', 'gửi file bảng giá')..."}
           value={inputMessage}
           onChange={(e) => setInputMessage(e.target.value)}
           className="flex-1 text-xs border border-purple-200 rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 bg-gray-50"
         />
         <button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-sm">
-          Gửi cho Bot
+          Tra cứu
         </button>
       </form>
     </div>
