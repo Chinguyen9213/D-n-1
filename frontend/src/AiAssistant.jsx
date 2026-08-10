@@ -1,167 +1,141 @@
-import React, { useState, useRef, useEffect } from 'react';
-
-function parseUserIntent(text) {
-  const lower = text.toLowerCase();
-  let intent = 'CHECK_STATUS';
-  if (lower.includes('file') || lower.includes('link') || lower.includes('tài liệu') || lower.includes('gửi') || lower.includes('tải') || lower.includes('xem')) {
-    intent = 'GET_FILE';
-  }
-  const stopWords = ['đã', 'chưa', 'thế nào', 'nào', 'task', 'của', 'vẽ', 'xong', 'kiểm', 'tra', 'tiến', 'độ', 'cho', 'tôi', 'xem', 'file', 'link', 'ở', 'đâu', 'đến'];
-  const words = lower.split(/\s+/).filter(w => !stopWords.includes(w) && w.length > 1);
-  const entity = words.join(' ') || lower;
-  return { intent, entity };
-}
-
-function processAgent2Response(intent, entity, tasks = []) {
-  const matchedTasks = tasks.filter(t => {
-    const titleVi = (t.titleVi || t.title || '').toLowerCase();
-    const titleJa = (t.titleJa || '').toLowerCase();
-    return titleVi.includes(entity) || titleJa.includes(entity) || entity.split(' ').some(w => titleVi.includes(w));
-  });
-
-  if (matchedTasks.length === 0) {
-    return {
-      text: `Rất tiếc, tôi không tìm thấy công việc nào khớp với từ khóa "${entity}". Bạn hãy kiểm tra lại tên task hoặc thử từ khóa khác nhé!`,
-      attachments: []
-    };
-  }
-
-  let responseLines = [];
-  let allAttachments = [];
-
-  matchedTasks.forEach(task => {
-    const totalChecklist = task.checklists ? task.checklists.length : 0;
-    const completedChecklist = task.checklists ? task.checklists.filter(c => c.completed).length : 0;
-    
-    let statusLabel = 'Đang tiến hành';
-    if (task.status === 'Đã Xong' || (completedChecklist === totalChecklist && totalChecklist > 0)) {
-      statusLabel = '✅ Đã hoàn thành';
-    } else if (task.status === 'Cần Làm') {
-      statusLabel = '🟡 Chưa bắt đầu (Cần làm)';
-    }
-
-    responseLines.push(`📌 **${task.titleVi || task.title}**\n- Trạng thái: ${statusLabel}\n- Tiến độ checklist: ${completedChecklist}/${totalChecklist} bước\n- Người phụ trách: ${task.assignee || 'Chi'}`);
-
-    if (task.attachments && task.attachments.length > 0) {
-      allAttachments.push(...task.attachments);
-    }
-  });
-
-  let finalReply = responseLines.join('\n\n');
-  if (intent === 'GET_FILE' && allAttachments.length === 0) {
-    finalReply += '\n\n📂 Hiện tại công việc này chưa có file hoặc link đính kèm nào.';
-  }
-
-  return {
-    text: finalReply,
-    attachments: allAttachments
-  };
-}
-
-export default function AiAssistant({ tasks = [], isJa }) {
-  const [inputMessage, setInputMessage] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const [chatLog, setChatLog] = useState([
+// --- TRỢ LÝ AI HỎI ĐÁP (Chatbot thông minh) ---
+function AiAssistant({ isJa }) {
+  const [inputContent, setInputContent] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [attachedFile, setAttachedFile] = useState(null);
+  
+  const [chatHistory, setChatHistory] = useState([
     {
       sender: 'ai',
-      text: isJa 
-        ? 'こんにちは！AI進捗アシスタントです。タスクの状況やファイルについて何でも聞いてください（例：「ロゴの進捗は？」）。' 
-        : 'Xin chào Chi! Tôi là Trợ lý AI tra cứu thông tin. Bạn có thể hỏi về tiến độ, trạng thái hoặc tài liệu của bất kỳ task nào (VD: "mặt bằng đến đâu rồi?").',
-      attachments: []
+      textVi: 'Xin chào Chi! Tôi là Trợ lý AI hỏi đáp. Bạn cần tôi hỗ trợ giải đáp thắc mắc, viết nội dung hay tư vấn vấn đề gì nào?',
+      textJa: 'こんにちは！AIチャットアシスタントです。ご質問やサポートが必要なことがあれば何でもどうぞ。'
     }
   ]);
 
-  const messagesEndRef = useRef(null);
+  const handleFileUploadToAi = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setAttachedFile(file);
+  };
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatLog, isTyping]);
+  const handleSendMessage = async () => {
+    if (!inputContent.trim() && !attachedFile) return;
+    const userText = inputContent.trim();
+    const fileName = attachedFile ? attachedFile.name : '';
+    
+    const displayMsg = userText + (fileName ? ` (📎 Đính kèm: ${fileName})` : '');
+    setChatHistory(prev => [...prev, { sender: 'user', textVi: displayMsg, textJa: displayMsg }]);
+    
+    setInputContent('');
+    setLoading(true);
 
-  const handleSendMessage = (e) => {
-    e.preventDefault();
-    if (!inputMessage.trim()) return;
+    try {
+      // -----------------------------------------------------------------
+      // BẠN CÓ THỂ THAY THẾ ĐOẠN NÀY BẰNG LỆNH GỌI API THỰC TẾ (ví dụ: fetch đến OpenAI, Gemini API, v.v.)
+      // -----------------------------------------------------------------
+      // const response = await fetch('YOUR_API_ENDPOINT', { method: 'POST', body: JSON.stringify({ prompt: userText }) });
+      // const data = await response.json();
+      // const aiResponseText = data.reply;
+      
+      // Đoạn giả lập AI thông minh trả lời động dựa trên câu hỏi:
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Giả lập độ trễ mạng
+      
+      let aiReplyVi = `Tôi đã hiểu câu hỏi của bạn về "${userText}". Dựa trên hệ thống quản lý dự án, bạn có thể phân chia các task nhỏ hoặc kiểm tra lại tiến độ ở bảng Kanban phía dưới.`;
+      let aiReplyJa = `「${userText}」についての質問ですね。プロジェクト管理システムに基づき、下のカンバンボードでタスクや進捗を確認することをお勧めします。`;
 
-    const userQuery = inputMessage.trim();
-    setChatLog(prev => [...prev, { sender: 'user', text: userQuery, attachments: [] }]);
-    setInputMessage('');
-    setIsTyping(true);
+      if (userText.toLowerCase().includes('chào') || userText.toLowerCase().includes('hi')) {
+        aiReplyVi = "Chào bạn! Tôi luôn sẵn sàng hỗ trợ bạn tối ưu hóa công việc hàng ngày.";
+        aiReplyJa = "こんにちは！毎日の業務効率化を全力でサポートいたします。";
+      } else if (userText.toLowerCase().includes('giúp') || userText.toLowerCase().includes('tính năng')) {
+        aiReplyVi = "Hệ thống này hỗ trợ bạn quản lý task song ngữ Việt - Nhật, theo dõi deadline qua lịch, và lưu trữ tài liệu đính kèm rất tiện lợi!";
+        aiReplyJa = "このシステムでは、日越バイリンガルタスク管理、カレンダーでの期限追跡、添付ファイルの保存などが可能です！";
+      }
 
-    setTimeout(() => {
-      const agent1 = parseUserIntent(userQuery);
-      const agent2 = processAgent2Response(agent1.intent, agent1.entity, tasks);
-
-      setChatLog(prev => [
+      setChatHistory(prev => [
         ...prev,
-        {
-          sender: 'ai',
-          text: agent2.text,
-          attachments: agent2.attachments
+        { 
+          sender: 'ai', 
+          textVi: aiReplyVi, 
+          textJa: aiReplyJa 
         }
       ]);
-      setIsTyping(false);
-    }, 400);
+    } catch (error) {
+      setChatHistory(prev => [
+        ...prev,
+        { 
+          sender: 'ai', 
+          textVi: 'Xin lỗi, đã có lỗi kết nối xảy ra với AI.', 
+          textJa: '申し訳ありませんが、AIとの接続エラーが発生しました。' 
+        }
+      ]);
+    } finally {
+      setLoading(false);
+      if (attachedFile) setAttachedFile(null);
+    }
   };
 
   return (
-    <div className="bg-white rounded-xl border border-purple-200 shadow-sm flex flex-col h-[480px] overflow-hidden my-4">
-      <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-3 text-white flex justify-between items-center">
-        <h3 className="text-xs font-bold flex items-center gap-1.5">
-          🤖 {isJa ? 'AI進捗・情報アシスタント' : 'Trợ lý AI Tra Cứu Thông Tin & Tiến Độ'}
+    <div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-4 rounded-xl border border-purple-200 shadow-sm space-y-3">
+      <div className="flex justify-between items-center">
+        <h3 className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
+          🤖 {isJa ? 'AIチャットアシスタント' : 'Trợ Lý AI Hỏi Đáp Thông Minh'}
         </h3>
-        <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-semibold">Active</span>
+        <span className="text-[10px] bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full font-semibold">Interactive Chat</span>
       </div>
 
-      <div className="flex-1 p-3 overflow-y-auto space-y-3 bg-gray-50 text-xs">
-        {chatLog.map((msg, idx) => (
-          <div key={idx} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
-            <div className={`max-w-[85%] p-3 rounded-xl leading-relaxed whitespace-pre-wrap shadow-sm ${
-              msg.sender === 'user' 
-                ? 'bg-purple-600 text-white rounded-br-none' 
-                : 'bg-white text-gray-800 border border-purple-200 rounded-bl-none'
+      <div className="bg-white/90 rounded-lg p-3 max-h-56 overflow-y-auto space-y-2 border border-purple-100 text-xs">
+        {chatHistory.map((chat, idx) => (
+          <div key={idx} className={`flex flex-col ${chat.sender === 'user' ? 'items-end' : 'items-start'}`}>
+            <div className={`max-w-[90%] p-2.5 rounded-xl leading-relaxed ${
+              chat.sender === 'user' 
+                ? 'bg-purple-600 text-white rounded-br-none shadow-sm' 
+                : 'bg-purple-100/90 text-purple-900 rounded-bl-none border border-purple-200'
             }`}>
-              <p>{msg.text}</p>
-
-              {msg.attachments && msg.attachments.length > 0 && (
-                <div className="mt-2.5 pt-2 border-t border-gray-100 space-y-1.5">
-                  <p className="font-bold text-[10px] text-gray-600">📎 Tài liệu đính kèm:</p>
-                  {msg.attachments.map((att, aIdx) => (
-                    <div key={aIdx} className="flex justify-between items-center bg-purple-50 p-1.5 rounded border border-purple-100">
-                      <span className="truncate max-w-[160px] font-medium">{att.name}</span>
-                      <a href={att.url} target="_blank" rel="noreferrer" className="bg-purple-600 text-white px-2.5 py-1 rounded text-[10px] font-bold">
-                        Xem/Tải
-                      </a>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <p>{isJa ? (chat.textJa || chat.textVi) : (chat.textVi || chat.textJa)}</p>
             </div>
           </div>
         ))}
-        {isTyping && (
+
+        {loading && (
           <div className="flex justify-start">
-            <div className="bg-purple-100 text-purple-700 p-2.5 rounded-xl text-[11px] italic animate-pulse">
-              🤖 AI đang tra cứu dữ liệu...
+            <div className="bg-purple-100 text-purple-700 p-2 rounded-xl text-[11px] italic animate-pulse">
+              💬 AI đang suy nghĩ và trả lời...
             </div>
           </div>
         )}
-        <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={handleSendMessage} className="p-3 bg-white border-t border-purple-100 flex gap-2 items-center">
+      {attachedFile && (
+        <div className="flex items-center justify-between bg-white px-3 py-1.5 rounded-lg border border-purple-300 text-xs">
+          <span className="text-purple-700 font-semibold truncate">📎 Đã đính kèm: {attachedFile.name}</span>
+          <button type="button" onClick={() => setAttachedFile(null)} className="text-red-500 font-bold ml-2">✕</button>
+        </div>
+      )}
+
+      <div className="flex gap-2 items-center">
+        <label className="cursor-pointer bg-white hover:bg-purple-50 border border-purple-300 text-purple-700 text-xs font-bold px-3 py-2 rounded-lg shadow-sm flex items-center gap-1 shrink-0">
+          📎 File
+          <input type="file" onChange={handleFileUploadToAi} className="hidden" />
+        </label>
+        
         <input
           type="text"
-          placeholder={isJa ? "タスクについて質問する..." : "Hỏi AI (VD: 'mặt bằng đến đâu rồi', 'tiến độ task logo')..."}
-          value={inputMessage}
-          onChange={(e) => setInputMessage(e.target.value)}
-          className="flex-1 text-xs border border-purple-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-purple-500 bg-gray-50"
+          placeholder="Nhập câu hỏi hoặc yêu cầu thảo luận với AI..."
+          value={inputContent}
+          onChange={(e) => setInputContent(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleSendMessage(); }}
+          className="flex-1 text-xs border border-purple-200 rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 bg-white"
         />
-        <button 
-          type="submit" 
-          className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-5 py-2.5 rounded-lg shadow-sm shrink-0"
+        
+        <button
+          type="button"
+          onClick={handleSendMessage}
+          disabled={loading}
+          className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-sm shrink-0"
         >
-          Hỏi AI
+          Gửi hỏi
         </button>
-      </form>
+      </div>
     </div>
   );
 }
