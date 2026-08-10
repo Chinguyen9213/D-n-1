@@ -8,7 +8,7 @@ const PRIORITIES = {
   LOW: { labelVi: '✅ Thấp', labelJa: '✅ 低', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' }
 };
 
-// --- TRỢ LÝ AI v4.3 (Tự động đọc nội dung trực tiếp nếu là URL / Google Sheets) ---
+// --- TRỢ LÝ AI v4.3 (Tự động đọc nội dung trực tiếp nếu là URL / Google Sheets) ---[cite: 1]
 function AiAssistant({ onConfirmTask, isJa }) {
   const [inputContent, setInputContent] = useState('');
   const [loading, setLoading] = useState(false);
@@ -43,10 +43,9 @@ function AiAssistant({ onConfirmTask, isJa }) {
       let previewTask = {};
       let aiMsgVi = '';
       let aiMsgJa = '';
-
       const lowerText = userText.toLowerCase();
       const isLink = lowerText.startsWith('http://') || lowerText.startsWith('https://') || lowerText.includes('docs.google.com') || lowerText.includes('sheet') || lowerText.includes('.com');
-
+      
       if (attachedFile || isLink) {
         const sourceName = attachedFile ? attachedFile.name : userText;
         aiMsgVi = `🤖 Tôi đã tự động truy cập và phân tích nội dung từ liên kết/tài liệu (**${sourceName}**). Dưới đây là các hạng mục task chi tiết được bóc tách tự động. Bạn kiểm tra và bấm xác nhận nhé!`;
@@ -69,7 +68,7 @@ function AiAssistant({ onConfirmTask, isJa }) {
       } else {
         aiMsgVi = `💡 Dựa trên yêu cầu của bạn ("${userText}"), tôi đã phân tích và bóc tách thành task công việc chuẩn xác. Hãy bấm xác nhận để đưa vào bảng Kanban!`;
         aiMsgJa = `💡 要件「${userText}」に基づき、タスクを分解しました。確認して作成してください。`;
-
+        
         previewTask = {
           titleVi: userText.length > 40 ? userText.slice(0, 40) + '...' : userText,
           titleJa: userText.length > 40 ? userText.slice(0, 40) + '...' : userText,
@@ -115,7 +114,7 @@ function AiAssistant({ onConfirmTask, isJa }) {
             }`}>
               <p>{isJa ? (chat.textJa || chat.textVi) : (chat.textVi || chat.textJa)}</p>
             </div>
-
+            
             {chat.previewTask && (
               <div className="mt-2 bg-white border-2 border-purple-300 rounded-xl p-3 shadow-md w-full max-w-md space-y-2">
                 <p className="text-[11px] font-bold text-purple-800 uppercase tracking-wide">🔍 Bản xem trước task sẽ được tạo:</p>
@@ -127,7 +126,7 @@ function AiAssistant({ onConfirmTask, isJa }) {
                     <p className="font-semibold text-gray-600 mt-1">Checklist mục con:</p>
                     <ul className="list-disc pl-4 text-gray-600 text-[11px]">
                       {chat.previewTask.checklists.map((c, i) => (
-                        <li key={i}>{c.textVi}</li>
+                        <li key={i}>{isJa ? c.textJa : c.textVi}</li>
                       ))}
                     </ul>
                   </div>
@@ -157,6 +156,7 @@ function AiAssistant({ onConfirmTask, isJa }) {
             )}
           </div>
         ))}
+
         {loading && (
           <div className="flex justify-start">
             <div className="bg-purple-100 text-purple-700 p-2 rounded-xl text-[11px] italic animate-pulse">
@@ -201,7 +201,7 @@ function AiAssistant({ onConfirmTask, isJa }) {
   );
 }
 
-// --- PHẦN MAIN APP ---
+// --- PHẦN MAIN APP ---[cite: 1]
 function MainApp({ user, onLogout }) {
   const { t, i18n } = useTranslation();
   useLanguageShortcut();
