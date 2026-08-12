@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const { PrismaClient } = require('@prisma/client');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
@@ -12,6 +13,10 @@ const prisma = new PrismaClient();
 // Khởi tạo Gemini AI với biến môi trường GEMINI_API_KEY
 const apiKey = process.env.GEMINI_API_KEY;
 const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
+
+// Khai báo đường dẫn tới thư mục frontend đã build
+const frontendPath = path.join(__dirname, '../frontend/dist');
+app.use(express.static(frontendPath));
 
 // API Lấy toàn bộ dữ liệu dự án và task từ Database
 app.get('/api/data', async (req, res) => {
@@ -95,6 +100,11 @@ app.post('/api/ai/parse-task', async (req, res) => {
     console.error("Lỗi Parse Task:", error);
     res.status(500).json({ error: error.message });
   }
+});
+
+// Điều hướng tất cả yêu cầu còn lại về index.html của React Frontend
+app.get('*', (req, res) => {
+  res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
 const PORT = process.env.PORT || 3000;
