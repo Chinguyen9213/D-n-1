@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
-import { useLanguageShortcut } from './useLanguageShortcut';
 
 const PRIORITIES = {
   HIGH: { labelVi: '🔥 Cao', labelJa: '🔥 高', color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
@@ -32,7 +30,6 @@ function AiAssistant({ isJa, tasks, projectName }) {
   const handleSendMessage = () => {
     if (!inputContent.trim() && !attachedFile) return;
     if (loading) return;
-
     const userText = inputContent.trim();
     const fileName = attachedFile ? attachedFile.name : '';
     const displayMsg = userText + (fileName ? ` (📎 Đính kèm: ${fileName})` : '');
@@ -46,8 +43,7 @@ function AiAssistant({ isJa, tasks, projectName }) {
     setTimeout(() => {
       const query = userText.toLowerCase();
       const currentTasks = tasks || [];
-
-      // Tìm kiếm task phù hợp dựa trên từ khóa người dùng nhập vào
+      
       const matchedTask = currentTasks.find(t => {
         const titleVi = (t.titleVi || t.title || '').toLowerCase();
         const titleJa = (t.titleJa || '').toLowerCase();
@@ -69,7 +65,6 @@ function AiAssistant({ isJa, tasks, projectName }) {
       const checklists = matchedTask.checklists || [];
       const totalSteps = checklists.length;
       const completedSteps = checklists.filter(c => c.completed).length;
-
       const aiResult = {
         taskTitle: matchedTask.titleVi || matchedTask.titleJa,
         status: matchedTask.status || 'Cần Làm',
@@ -96,7 +91,6 @@ function AiAssistant({ isJa, tasks, projectName }) {
         </h3>
         <span className="text-[10px] bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full font-semibold">Active</span>
       </div>
-
       <div className="bg-white/90 rounded-lg p-3 max-h-60 overflow-y-auto space-y-3 border border-purple-100 text-xs">
         {chatHistory.map((chat, idx) => (
           <div key={idx} className={`flex flex-col ${chat.sender === 'user' ? 'items-end' : 'items-start'}`}>
@@ -106,11 +100,9 @@ function AiAssistant({ isJa, tasks, projectName }) {
                 : 'bg-purple-100/90 text-purple-900 rounded-bl-none border border-purple-200 space-y-2'
             }`}>
               <p>{isJa ? (chat.textJa || chat.textVi) : (chat.textVi || chat.textJa)}</p>
-
               {chat.result && (
                 <div className="mt-2 pt-2 border-t border-purple-200 space-y-2 text-xs text-gray-800 bg-white/60 p-2 rounded-lg">
                   <div className="font-bold text-purple-900 text-[13px]">📌 Công việc: "{chat.result.taskTitle}"</div>
-                  
                   <div>
                     <span className="font-semibold text-gray-500">Trạng thái: </span>
                     <span className={`px-2 py-0.5 rounded font-bold ${
@@ -120,7 +112,6 @@ function AiAssistant({ isJa, tasks, projectName }) {
                       {chat.result.status}
                     </span>
                   </div>
-
                   <div>
                     <span className="font-semibold text-gray-500">Tiến độ chi tiết: </span>
                     <span className="font-medium text-gray-700">{chat.result.progressText}</span>
@@ -134,7 +125,6 @@ function AiAssistant({ isJa, tasks, projectName }) {
                       </ul>
                     )}
                   </div>
-
                   {chat.result.attachments && chat.result.attachments.length > 0 && (
                     <div className="pt-2 border-t border-purple-100 space-y-1.5">
                       <span className="font-semibold text-gray-500 block">File/Kết quả đính kèm:</span>
@@ -167,20 +157,17 @@ function AiAssistant({ isJa, tasks, projectName }) {
           </div>
         )}
       </div>
-
       {attachedFile && (
         <div className="flex items-center justify-between bg-white px-3 py-1.5 rounded-lg border border-purple-300 text-xs">
           <span className="text-purple-700 font-semibold truncate">📎 Đã chọn file: {attachedFile.name}</span>
           <button type="button" onClick={() => setAttachedFile(null)} className="text-red-500 font-bold ml-2">✕</button>
         </div>
       )}
-
       <div className="flex gap-2 items-center">
         <label className="cursor-pointer bg-white hover:bg-purple-50 border border-purple-300 text-purple-700 text-xs font-bold px-3 py-2 rounded-lg shadow-sm flex items-center gap-1 shrink-0">
           📎 Gửi file
           <input type="file" onChange={handleFileUploadToAi} className="hidden" />
         </label>
-        
         <input
           type="text"
           placeholder="Nhập nội dung trao đổi (VD: logo, quy trình...)"
@@ -189,7 +176,6 @@ function AiAssistant({ isJa, tasks, projectName }) {
           onKeyDown={(e) => { if (e.key === 'Enter') handleSendMessage(); }}
           className="flex-1 text-xs border border-purple-200 rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 bg-white"
         />
-        
         <button
           type="button"
           onClick={handleSendMessage}
@@ -205,9 +191,7 @@ function AiAssistant({ isJa, tasks, projectName }) {
 
 // --- PHẦN MAIN APP ---
 function MainApp({ user, onLogout }) {
-  const { t, i18n } = useTranslation();
-  useLanguageShortcut();
-  const isJa = i18n.language && i18n.language.startsWith('ja');
+  const [isJa, setIsJa] = useState(false);
   
   const [projects, setProjects] = useState(() => {
     const saved = localStorage.getItem('kanban_projects');
@@ -313,11 +297,7 @@ function MainApp({ user, onLogout }) {
   const [filterPriority, setFilterPriority] = useState('all');
   const [viewMode, setViewMode] = useState('kanban');
 
-  const toggleLanguage = () => {
-    const currentLang = i18n.language || 'vi';
-    i18n.changeLanguage(currentLang.startsWith('vi') ? 'ja' : 'vi');
-  };
-
+  const toggleLanguage = () => setIsJa(!isJa);
   const getProjName = (p) => (isJa ? (p.nameJa || p.nameVi) : (p.nameVi || p.nameJa));
   const getTaskTitle = (task) => (isJa ? (task.titleJa || task.titleVi) : (task.titleVi || task.titleJa));
   const getChecklistText = (item) => (isJa ? (item.textJa || item.textVi) : (item.textVi || item.textJa));
@@ -616,13 +596,11 @@ function MainApp({ user, onLogout }) {
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Trợ lý AI cục bộ */}
               <AiAssistant 
                 isJa={isJa} 
                 tasks={currentProjectTasks} 
                 projectName={currentProjectObj ? getProjName(currentProjectObj) : ''} 
               />
-
               {(() => {
                 const projChecklists = currentProjectTasks.flatMap(t => t.checklists);
                 const projTotal = projChecklists.length;
