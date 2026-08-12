@@ -51,9 +51,9 @@ Dữ liệu công việc thực tế hiện tại trong hệ thống:
 Nhiệm vụ: Trả lời người dùng bằng tiếng Việt ngắn gọn, rõ ràng dựa vào danh sách task.
 `;
 
-    // Sử dụng model chuẩn gemini-1.5-flash
+    // Sử dụng model gemini-2.0-flash
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash", 
+      model: "gemini-2.0-flash", 
       systemInstruction 
     });
 
@@ -72,8 +72,9 @@ app.post('/api/ai/parse-task', async (req, res) => {
 
     const prompt = `Đọc đoạn mô tả sau và bóc tách thành các trường thông tin chuẩn dưới dạng JSON gồm: title, assignee, priority. Nội dung: "${text}"`;
     
+    // Đồng bộ model gemini-2.0-flash
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "gemini-2.0-flash",
       generationConfig: { responseMimeType: "application/json" }
     });
 
