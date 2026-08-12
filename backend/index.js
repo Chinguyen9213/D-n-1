@@ -8,14 +8,13 @@ app.use(cors({ origin: '*' }));
 app.use(express.json());
 
 const prisma = new PrismaClient();
-
 const apiKey = process.env.GEMINI_API_KEY;
 
 // Trỏ chính xác ra thư mục frontend/dist tính từ thư mục gốc dự án
 const frontendPath = path.resolve(__dirname, '../frontend/dist');
 app.use(express.static(frontendPath));
 
-// --- CÁC ROUTE API CỦA BẠN ---
+// --- API TẢI DỮ LIỆU TỪ DATABASE ---
 app.get('/api/data', async (req, res) => {
   try {
     const projects = await prisma.project.findMany({ 
@@ -34,17 +33,57 @@ app.get('/api/data', async (req, res) => {
   }
 });
 
+// --- API ĐỒNG BỘ / LƯU DỮ LIỆU LÊN DATABASE ---
 app.post('/api/data', async (req, res) => {
   try {
     const { projects } = req.body;
-    // Bạn có thể bổ sung logic lưu database Prisma tại đây nếu cần
-    res.json({ success: true, message: "Đã lưu dữ liệu lên mây thành công!" });
+    
+    if (projects && Array.isArray(projects)) {
+      for (const p of projects) {
+        await prisma.project.upsert({
+          where: { id: p.id },
+          update: { nameVi: p.nameVi || '', nameJa: p.nameJa || '' },
+          create: { id: p.id, nameVi: p.nameVi || '', nameJa: p.nameJa || '' }
+        });
+
+        // Xử lý lưu tasks nếu có
+        if (p.tasks && Array.isArray(p.tasks)) {
+          for (const t of p.tasks) {
+            await prisma.task.upsert({
+              where: { id: t.id },
+              update: {
+                titleVi: t.titleVi || '',
+                titleJa: t.titleJa || '',
+                status: t.status || 'Cần Làm',
+                priority: t.priority || 'MEDIUM',
+                assignee: t.assignee || '',
+                dueDate: t.dueDate || '',
+                projectId: p.id
+              },
+              create: {
+                id: t.id,
+                projectId: p.id,
+                titleVi: t.titleVi || '',
+                titleJa: t.titleJa || '',
+                status: t.status || 'Cần Làm',
+                priority: t.priority || 'MEDIUM',
+                assignee: t.assignee || '',
+                dueDate: t.dueDate || ''
+              }
+            });
+          }
+        }
+      }
+    }
+
+    res.json({ success: true, message: "Đã đồng bộ dữ liệu lên mây thành công!" });
   } catch (error) {
+    console.error("Lỗi lưu dữ liệu:", error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// Route Trợ lý AI Chat
+// --- API TRỢ LÝ AI CHAT ---
 app.post('/api/ai/chat', async (req, res) => {
   try {
     const { message, projectData } = req.body;
@@ -81,7 +120,7 @@ Nhiệm vụ: Trả lời người dùng bằng tiếng Việt ngắn gọn, rõ
   }
 });
 
-// Route Phân tích Task (Đã sửa lỗi cú pháp URL fetch)
+// --- API PHÂN TÍCH TASK ---
 app.post('/api/ai/parse-task', async (req, res) => {
   try {
     const { text } = req.body;
@@ -102,8 +141,6 @@ app.post('/api/ai/parse-task', async (req, res) => {
     if (data.error) throw new Error(data.error.message);
 
     let jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-    
-    // Bỏ ký tự markdown code block nếu Gemini lỡ trả về dạng ```json ... ```
     jsonText = jsonText.replace(/```json/g, '').replace(/```/g, '').trim();
 
     res.json(JSON.parse(jsonText));
