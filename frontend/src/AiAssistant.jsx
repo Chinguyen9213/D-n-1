@@ -1,78 +1,173 @@
 import React, { useState } from 'react';
 
 export default function AiAssistant({ tasks, projectName }) {
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState([
+    { 
+      sender: 'bot', 
+      text: 'Xin chào Chi! Tôi là Trợ lý AI. Bạn có thể hỏi về tiến độ công việc (ví dụ: "đã vẽ xong logo chưa?", "bảng giá...").', 
+      result: null 
+    }
+  ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSend = async () => {
+  const handleSend = () => {
     if (!input.trim() || loading) return;
 
     const userMsg = input.trim();
     setInput('');
-    setMessages(prev => [...prev, { sender: 'user', text: userMsg }]);
+    // Thêm tin nhắn câu hỏi của người dùng vào khung chat
+    setMessages(prev => [...prev, { sender: 'user', text: userMsg, result: null }]);
     setLoading(true);
 
-    // Thu thập dữ liệu tiến độ & danh sách task thực tế
-    const projectData = {
-      projectName: projectName || "Oishii BBQ",
-      progress: tasks && tasks.length > 0 
-        ? `${tasks.filter(t => t.completed || t.status === 'Done').length}/${tasks.length} mục (${Math.round((tasks.filter(t => t.completed || t.status === 'Done').length / tasks.length) * 100)}%)` 
-        : "0/0 mục (0%)",
-      taskList: tasks || []
-    };
+    setTimeout(() => {
+      const query = userMsg.toLowerCase();
+      const currentTasks = tasks || [];
 
-    try {
-      // Đã sửa đường dẫn thành /api/ai/chat cho khớp với Backend
-      const res = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: userMsg,
-          projectData: projectData
-        })
+      // --- AGENT 1: Phân tích ý định & bóc tách từ khóa mục tiêu (Entity) ---
+      const matchedTask = currentTasks.find(t => {
+        const titleVi = (t.titleVi || t.title || '').toLowerCase();
+        const titleJa = (t.titleJa || '').toLowerCase();
+        const keywords = query.split(/\s+/).filter(word => word.length > 1);
+        return keywords.some(kw => titleVi.includes(kw) || titleJa.includes(kw));
       });
 
-      const data = await res.json();
-
-      if (res.ok && data.reply) {
-        setMessages(prev => [...prev, { sender: 'bot', text: data.reply }]);
-      } else {
-        setMessages(prev => [...prev, { sender: 'bot', text: data.error || 'Có lỗi xảy ra khi xử lý phản hồi từ AI.' }]);
+      if (!matchedTask) {
+        setMessages(prev => [...prev, {
+          sender: 'bot',
+          text: `Không tìm thấy công việc nào khớp với từ khóa trong câu hỏi: "${userMsg}".`,
+          result: null
+        }]);
+        setLoading(false);
+        return;
       }
-    } catch (err) {
-      console.error("Lỗi gửi tin nhắn AI:", err);
-      setMessages(prev => [...prev, { sender: 'bot', text: 'Lỗi kết nối tới server AI.' }]);
-    } finally {
+
+      // --- AGENT 2: Truy xuất thông tin từ state tasks & checklist ---
+      const checklists = matchedTask.checklists || matchedTask.subtasks || [];
+      const totalSteps = checklists.length;
+      const completedSteps = checklists.filter(c => c.completed || c.status === 'Done').length;
+
+      const aiResult = {
+        taskTitle: matchedTask.titleVi || matchedTask.title || matchedTask.titleJa,
+        status: matchedTask.status || (matchedTask.completed ? 'Đã Xong' : 'Đang Làm'),
+        progressText: totalSteps > 0 ? `Đã xong ${completedSteps}/${totalSteps} bước checklist` : "Chưa có bước checklist chi tiết",
+        checklists: checklists,
+        attachments: matchedTask.attachments || []
+      };
+
+      // Đưa kết quả cấu trúc trực quan vào tin nhắn của bot
+      setMessages(prev => [...prev, {
+        sender: 'bot',
+        text: `Dưới đây là thông tin chi tiết cho công việc bạn yêu cầu trong dự án "${projectName || "Oishii BBQ"}":`,
+        result: aiResult
+      }]);
       setLoading(false);
-    }
+    }, 300);
   };
 
   return (
-    <div className="ai-assistant-container">
-      <div className="chat-box">
-        {messages.length === 0 && (
-          <div className="message bot">
-            Xin chào! Tôi là Trợ lý AI trò chuyện. Bạn có thể hỏi về tiến độ, công việc hoặc bất kỳ thông tin gì trong dự án!
-          </div>
-        )}
-        {messages.map((msg, index) => (
-          <div key={index} className={`message ${msg.sender}`}>
-            {msg.text}
-          </div>
-        ))}
-        {loading && <div className="message bot">AI đang kiểm tra tiến độ...</div>}
+    <div className="bg-purple-50/60 border border-purple-200 rounded-2xl p-4 flex flex-col h-[480px] shadow-sm">
+      {/* Tiêu đề khung chat */}
+      <div className="flex justify-between items-center pb-3 border-b border-purple-200 mb-3">
+        <span className="font-bold text-purple-900 text-sm flex items-center gap-1.5">
+          💬 Trợ Lý AI Trò Chuyện & Hỗ Trợ (Local Agent)
+        </span>
+        <span className="text-[11px] bg-purple-200 text-purple-800 font-bold px-2 py-0.5 rounded-full">Active</span>
       </div>
 
-      <div className="chat-input-area">
+      {/* Khu vực hiển thị tin nhắn */}
+      <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+        {messages.map((msg, index) => (
+          <div key={index} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
+            <div className={`max-w-[90%] rounded-2xl px-4 py-2.5 text-xs ${
+              msg.sender === 'user' 
+                ? 'bg-purple-600 text-white rounded-br-none' 
+                : 'bg-white border border-purple-200 text-gray-800 rounded-bl-none shadow-sm space-y-2'
+            }`}>
+              <p>{msg.text}</p>
+              
+              {/* Định dạng phản hồi trực quan từ Agent 2 */}
+              {msg.result && (
+                <div className="mt-2.5 pt-2.5 border-t border-purple-100 space-y-2 text-xs">
+                  <div className="font-bold text-purple-900 text-[13px]">📌 Công việc: "{msg.result.taskTitle}"</div>
+                  
+                  {/* Trạng thái */}
+                  <div>
+                    <span className="font-semibold text-gray-500">Trạng thái: </span>
+                    <span className={`px-2 py-0.5 rounded font-bold ${
+                      msg.result.status === 'Đã Xong' || msg.result.status === 'Done' ? 'bg-green-100 text-green-700' :
+                      msg.result.status === 'Đang Làm' || msg.result.status === 'In Progress' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'
+                    }`}>
+                      {msg.result.status}
+                    </span>
+                  </div>
+
+                  {/* Tiến độ chi tiết checklist */}
+                  <div>
+                    <span className="font-semibold text-gray-500">Tiến độ chi tiết: </span>
+                    <span className="font-medium text-gray-700">{msg.result.progressText}</span>
+                    {msg.result.checklists.length > 0 && (
+                      <ul className="list-disc pl-4 mt-1 space-y-1 text-gray-600">
+                        {msg.result.checklists.map((c, i) => (
+                          <li key={i} className={c.completed || c.status === 'Done' ? "line-through text-gray-400" : ""}>
+                            {c.textVi || c.text || c.name} {c.completed || c.status === 'Done' ? "✓" : "..."}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  {/* File / Kết quả đính kèm dạng nút bấm tải hoặc xem trực tiếp */}
+                  {msg.result.attachments && msg.result.attachments.length > 0 && (
+                    <div className="pt-2 border-t border-purple-100 space-y-1.5">
+                      <span className="font-semibold text-gray-500 block">File/Kết quả đính kèm:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {msg.result.attachments.map((att, i) => (
+                          <a
+                            key={i}
+                            href={att.url || att.link}
+                            target="_blank"
+                            rel="noreferrer"
+                            download={att.type === 'file' ? (att.name || 'download') : undefined}
+                            className="inline-flex items-center gap-1 bg-purple-50 border border-purple-300 text-purple-700 hover:bg-purple-100 font-semibold px-2.5 py-1 rounded-md shadow-xs transition"
+                          >
+                            {att.type === 'file' ? '💾' : '🔗'} {att.name || att.title || 'Tập tin đính kèm'}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+        {loading && (
+          <div className="flex items-start">
+            <div className="bg-white border border-purple-200 text-gray-500 rounded-2xl rounded-bl-none px-4 py-2 text-xs shadow-sm">
+              🤖 AI đang quét trạng thái và checklist công việc...
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Khung nhập nội dung chat */}
+      <div className="pt-3 border-t border-purple-200 flex gap-2 mt-2">
         <input 
           type="text" 
           value={input} 
           onChange={(e) => setInput(e.target.value)} 
-          placeholder="Nhập nội dung trao đổi với AI..."
+          placeholder="Nhập nội dung trao đổi (VD: logo, bảng giá...)"
           onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+          className="flex-1 border border-purple-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-purple-600 bg-white"
         />
-        <button onClick={handleSend} disabled={loading}>Gửi</button>
+        <button 
+          onClick={handleSend} 
+          disabled={loading}
+          className="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-4 py-2 rounded-xl text-xs shadow-sm transition disabled:opacity-50"
+        >
+          Gửi
+        </button>
       </div>
     </div>
   );
