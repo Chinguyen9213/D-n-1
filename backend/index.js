@@ -14,8 +14,8 @@ const prisma = new PrismaClient();
 const apiKey = process.env.GEMINI_API_KEY;
 const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
 
-// Khai báo đường dẫn tới thư mục frontend đã build
-const frontendPath = path.join(__dirname, '../frontend/dist');
+// Khai báo đường dẫn tuyệt đối tới thư mục frontend đã build
+const frontendPath = path.resolve(__dirname, '../frontend/dist');
 app.use(express.static(frontendPath));
 
 // API Lấy toàn bộ dữ liệu dự án và task từ Database
@@ -104,7 +104,12 @@ app.post('/api/ai/parse-task', async (req, res) => {
 
 // Điều hướng tất cả yêu cầu còn lại về index.html của React Frontend
 app.get('*', (req, res) => {
-  res.sendFile(path.join(frontendPath, 'index.html'));
+  const indexPath = path.join(frontendPath, 'index.html');
+  res.sendFile(indexPath, (err) => {
+    if (err) {
+      res.status(404).send("Chưa tìm thấy giao diện đã build. Hãy kiểm tra lại lệnh Build Command trên Render!");
+    }
+  });
 });
 
 const PORT = process.env.PORT || 3000;
