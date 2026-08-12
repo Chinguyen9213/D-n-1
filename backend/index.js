@@ -51,10 +51,16 @@ Dữ liệu công việc thực tế hiện tại trong hệ thống:
 Nhiệm vụ: Trả lời người dùng bằng tiếng Việt ngắn gọn, rõ ràng dựa vào danh sách task.
 `;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash", systemInstruction });
+    // Sử dụng model chuẩn gemini-1.5-flash-latest
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash-latest", 
+      systemInstruction 
+    });
+
     const result = await model.generateContent(message);
     res.json({ reply: result.response.text() });
   } catch (error) {
+    console.error("Lỗi AI Chat:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -65,14 +71,17 @@ app.post('/api/ai/parse-task', async (req, res) => {
     if (!genAI) return res.status(500).json({ error: "Chưa cấu hình GEMINI_API_KEY trên Render!" });
 
     const prompt = `Đọc đoạn mô tả sau và bóc tách thành các trường thông tin chuẩn dưới dạng JSON gồm: title, assignee, priority. Nội dung: "${text}"`;
+    
+    // Đã đồng bộ sang gemini-1.5-flash-latest
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "gemini-1.5-flash-latest",
       generationConfig: { responseMimeType: "application/json" }
     });
 
     const result = await model.generateContent(prompt);
     res.json(JSON.parse(result.response.text()));
   } catch (error) {
+    console.error("Lỗi Parse Task:", error);
     res.status(500).json({ error: error.message });
   }
 });
