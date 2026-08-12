@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLanguageShortcut } from './useLanguageShortcut';
+
 const PRIORITIES = {
   HIGH: { labelVi: '🔥 Cao', labelJa: '🔥 高', color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
   MEDIUM: { labelVi: '⚡ Trung bình', labelJa: '⚡ 中', color: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-200' },
@@ -16,8 +17,8 @@ function AiAssistant({ isJa, tasks, projectName }) {
   const [chatHistory, setChatHistory] = useState([
     {
       sender: 'ai',
-      textVi: 'Xin chào Chi! Tôi là Trợ lý AI. Bạn có thể hỏi về tiến độ công việc hoặc tra cứu thông tin (VD: "logo", "bảng giá"...).',
-      textJa: 'こんにちは！AIアシスタントです。タスクの進捗や情報についてお気軽にご質問ください。',
+      textVi: 'Xin chào Chi! Tôi là Trợ lý AI cục bộ. Bạn có thể hỏi về tiến độ công việc hoặc tra cứu thông tin (VD: "logo", "bảng giá"...).',
+      textJa: 'こんにちは！ローカルAIアシスタントです。タスクの進捗や情報についてお気軽にご質問ください。',
       result: null
     }
   ]);
@@ -36,7 +37,6 @@ function AiAssistant({ isJa, tasks, projectName }) {
     const fileName = attachedFile ? attachedFile.name : '';
     const displayMsg = userText + (fileName ? ` (📎 Đính kèm: ${fileName})` : '');
     
-    // Thêm câu hỏi của user vào lịch sử chat
     setChatHistory(prev => [...prev, { sender: 'user', textVi: displayMsg, textJa: displayMsg, result: null }]);
     
     setInputContent('');
@@ -47,7 +47,7 @@ function AiAssistant({ isJa, tasks, projectName }) {
       const query = userText.toLowerCase();
       const currentTasks = tasks || [];
 
-      // --- AGENT 1: Phân tích ý định & bóc tách từ khóa mục tiêu (Entity) ---
+      // Tìm kiếm task phù hợp dựa trên từ khóa người dùng nhập vào
       const matchedTask = currentTasks.find(t => {
         const titleVi = (t.titleVi || t.title || '').toLowerCase();
         const titleJa = (t.titleJa || '').toLowerCase();
@@ -58,7 +58,7 @@ function AiAssistant({ isJa, tasks, projectName }) {
       if (!matchedTask) {
         setChatHistory(prev => [...prev, {
           sender: 'ai',
-          textVi: `Không tìm thấy công việc nào khớp với từ khóa trong câu hỏi: "${userText}".`,
+          textVi: `Không tìm thấy công việc nào khớp với từ khóa trong câu hỏi: "${userText}". Bạn có thể thử lại với tên task cụ thể hơn nhé!`,
           textJa: `キーワードに一致するタスクが見つかりませんでした: "${userText}"。`,
           result: null
         }]);
@@ -66,7 +66,6 @@ function AiAssistant({ isJa, tasks, projectName }) {
         return;
       }
 
-      // --- AGENT 2: Truy xuất thông tin từ state tasks & checklist ---
       const checklists = matchedTask.checklists || [];
       const totalSteps = checklists.length;
       const completedSteps = checklists.filter(c => c.completed).length;
@@ -108,7 +107,6 @@ function AiAssistant({ isJa, tasks, projectName }) {
             }`}>
               <p>{isJa ? (chat.textJa || chat.textVi) : (chat.textVi || chat.textJa)}</p>
 
-              {/* Định dạng phản hồi trực quan từ Agent 2 */}
               {chat.result && (
                 <div className="mt-2 pt-2 border-t border-purple-200 space-y-2 text-xs text-gray-800 bg-white/60 p-2 rounded-lg">
                   <div className="font-bold text-purple-900 text-[13px]">📌 Công việc: "{chat.result.taskTitle}"</div>
@@ -185,7 +183,7 @@ function AiAssistant({ isJa, tasks, projectName }) {
         
         <input
           type="text"
-          placeholder="Nhập nội dung trao đổi (VD: logo, bảng giá...)"
+          placeholder="Nhập nội dung trao đổi (VD: logo, quy trình...)"
           value={inputContent}
           onChange={(e) => setInputContent(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') handleSendMessage(); }}
@@ -224,6 +222,7 @@ function MainApp({ user, onLogout }) {
       { id: 'p2', nameVi: 'Marketing & Quảng Cáo', nameJa: 'マーケティング＆広告' }
     ];
   });
+
   const [tasks, setTasks] = useState(() => {
     const saved = localStorage.getItem('kanban_tasks');
     if (saved) {
@@ -259,8 +258,10 @@ function MainApp({ user, onLogout }) {
       }
     ];
   });
+
   useEffect(() => { localStorage.setItem('kanban_projects', JSON.stringify(projects)); }, [projects]);
   useEffect(() => { localStorage.setItem('kanban_tasks', JSON.stringify(tasks)); }, [tasks]);
+
   const exportData = () => {
     const data = JSON.stringify({ projects, tasks }, null, 2);
     const blob = new Blob([data], { type: 'application/json' });
@@ -270,6 +271,7 @@ function MainApp({ user, onLogout }) {
     a.download = `kanban_backup_${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
   };
+
   const importData = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -289,6 +291,7 @@ function MainApp({ user, onLogout }) {
     reader.readAsText(file);
     e.target.value = null;
   };
+
   const [currentView, setCurrentView] = useState('p1');
   const [newProjectNameVi, setNewProjectNameVi] = useState('');
   const [newProjectNameJa, setNewProjectNameJa] = useState('');
@@ -309,13 +312,16 @@ function MainApp({ user, onLogout }) {
   const [filterAssignee, setFilterAssignee] = useState('all');
   const [filterPriority, setFilterPriority] = useState('all');
   const [viewMode, setViewMode] = useState('kanban');
+
   const toggleLanguage = () => {
     const currentLang = i18n.language || 'vi';
     i18n.changeLanguage(currentLang.startsWith('vi') ? 'ja' : 'vi');
   };
+
   const getProjName = (p) => (isJa ? (p.nameJa || p.nameVi) : (p.nameVi || p.nameJa));
   const getTaskTitle = (task) => (isJa ? (task.titleJa || task.titleVi) : (task.titleVi || task.titleJa));
   const getChecklistText = (item) => (isJa ? (item.textJa || item.textVi) : (item.textVi || item.textJa));
+
   const handleDeleteProject = (projectId, e) => {
     if (e) { e.stopPropagation(); e.preventDefault(); }
     const targetProj = projects.find(p => p.id === projectId);
@@ -326,6 +332,7 @@ function MainApp({ user, onLogout }) {
       if (currentView === projectId) setCurrentView('overview');
     }
   };
+
   const handleAddProject = (e) => {
     e.preventDefault();
     if (!newProjectNameVi.trim() && !newProjectNameJa.trim()) return;
@@ -337,6 +344,7 @@ function MainApp({ user, onLogout }) {
     setNewProjectNameVi('');
     setNewProjectNameJa('');
   };
+
   const handleAddTask = (e) => {
     if (e) e.preventDefault();
     if (!newTaskTitleVi.trim() && !newTaskTitleJa.trim()) return;
@@ -361,6 +369,7 @@ function MainApp({ user, onLogout }) {
     setNewTaskDueDate('');
     setNewTaskPriority('MEDIUM');
   };
+
   const handleSaveTaskTitle = (taskId) => {
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
@@ -374,6 +383,7 @@ function MainApp({ user, onLogout }) {
     }));
     setEditingTaskId(null);
   };
+
   const handleAddAttachmentUrl = (taskId) => {
     const name = attNameInputs[taskId];
     const url = attUrlInputs[taskId];
@@ -391,6 +401,7 @@ function MainApp({ user, onLogout }) {
     setAttNameInputs(prev => ({ ...prev, [taskId]: '' }));
     setAttUrlInputs(prev => ({ ...prev, [taskId]: '' }));
   };
+
   const handleFileUpload = (taskId, e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -408,6 +419,7 @@ function MainApp({ user, onLogout }) {
     reader.readAsDataURL(file);
     e.target.value = null;
   };
+
   const handleDeleteAttachment = (taskId, attId) => {
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
@@ -416,6 +428,7 @@ function MainApp({ user, onLogout }) {
       return t;
     }));
   };
+
   const handleAddChecklist = (taskId, e) => {
     e.preventDefault();
     const textVi = (newChecklistTextVi[taskId] || '').trim();
@@ -432,15 +445,19 @@ function MainApp({ user, onLogout }) {
     setNewChecklistTextVi(prev => ({ ...prev, [taskId]: '' }));
     setNewChecklistTextJa(prev => ({ ...prev, [taskId]: '' }));
   };
+
   const handleStatusChange = (taskId, newStatus) => {
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
   };
+
   const handlePriorityChange = (taskId, newPriority) => {
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, priority: newPriority } : t));
   };
+
   const handleDeleteTask = (taskId) => {
     setTasks(prev => prev.filter(t => t.id !== taskId));
   };
+
   const toggleChecklist = (taskId, itemId) => {
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
@@ -452,6 +469,7 @@ function MainApp({ user, onLogout }) {
       return t;
     }));
   };
+
   const deleteChecklistItem = (taskId, itemId) => {
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
@@ -460,6 +478,7 @@ function MainApp({ user, onLogout }) {
       return t;
     }));
   };
+
   const allChecklistItems = tasks.flatMap(task => {
     const proj = projects.find(p => p.id === task.projectId);
     return task.checklists.map(c => ({
@@ -469,6 +488,7 @@ function MainApp({ user, onLogout }) {
       projectName: proj ? getProjName(proj) : 'Chưa phân loại'
     }));
   });
+
   const totalChecklistsCount = tasks.reduce((acc, t) => acc + t.checklists.length, 0);
   const completedChecklistsCount = tasks.reduce((acc, t) => acc + t.checklists.filter(c => c.completed).length, 0);
   const overallProgress = totalChecklistsCount > 0 ? Math.round((completedChecklistsCount / totalChecklistsCount) * 100) : 0;
@@ -484,7 +504,9 @@ function MainApp({ user, onLogout }) {
     const matchPriority = filterPriority === 'all' || t.priority === filterPriority;
     return matchSearch && matchAssignee && matchPriority;
   });
+
   const uniqueAssignees = Array.from(new Set(tasks.map(t => t.assignee).filter(Boolean)));
+
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col font-sans relative">
       <header className="bg-white border-b border-gray-200 px-6 py-4 shadow-sm flex justify-between items-center">
@@ -507,6 +529,7 @@ function MainApp({ user, onLogout }) {
           </button>
         </div>
       </header>
+
       <div className="flex-1 flex overflow-hidden">
         <aside className="w-64 bg-white border-r border-gray-200 p-4 flex flex-col">
           <button
@@ -517,6 +540,7 @@ function MainApp({ user, onLogout }) {
           >
             📊 {isJa ? 'ダッシュボード' : 'Trang Tổng Hợp'}
           </button>
+          
           <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{isJa ? 'プロジェクト一覧' : 'DANH MỤC DỰ ÁN'}</h2>
           
           <div className="flex-1 overflow-y-auto space-y-1">
@@ -538,6 +562,7 @@ function MainApp({ user, onLogout }) {
               </div>
             ))}
           </div>
+
           <form onSubmit={handleAddProject} className="mt-4 pt-4 border-t border-gray-200 space-y-2">
             <input
               type="text"
@@ -556,6 +581,7 @@ function MainApp({ user, onLogout }) {
             <button type="submit" className="w-full bg-blue-600 text-white text-xs font-semibold py-1.5 rounded-lg">{isJa ? 'フォルダ追加' : '+ Thêm danh mục'}</button>
           </form>
         </aside>
+
         <main className="flex-1 p-6 overflow-y-auto space-y-6">
           {currentView === 'overview' ? (
             <div className="space-y-6">
@@ -590,12 +616,13 @@ function MainApp({ user, onLogout }) {
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Trợ lý AI cục bộ (Local Agent) hoạt động mượt mà không cần backend */}
+              {/* Trợ lý AI cục bộ */}
               <AiAssistant 
                 isJa={isJa} 
                 tasks={currentProjectTasks} 
                 projectName={currentProjectObj ? getProjName(currentProjectObj) : ''} 
               />
+
               {(() => {
                 const projChecklists = currentProjectTasks.flatMap(t => t.checklists);
                 const projTotal = projChecklists.length;
@@ -629,6 +656,7 @@ function MainApp({ user, onLogout }) {
                   </div>
                 );
               })()}
+
               <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
                 <h3 className="text-sm font-bold text-gray-800">✨ {isJa ? '新しいタスクを追加' : 'Thêm Công Việc Mới (Song ngữ Tiếng Việt & Tiếng Nhật)'}</h3>
                 <form onSubmit={handleAddTask} className="grid grid-cols-1 md:grid-cols-6 gap-3">
@@ -649,6 +677,7 @@ function MainApp({ user, onLogout }) {
                   </div>
                 </form>
               </div>
+
               <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-wrap items-center gap-3 justify-between">
                 <div className="flex flex-wrap items-center gap-2 flex-1">
                   <input
@@ -670,6 +699,7 @@ function MainApp({ user, onLogout }) {
                   </select>
                 </div>
               </div>
+
               <div className="flex items-center justify-between pb-2 border-b border-gray-200">
                 <h2 className="text-xl font-bold text-gray-800">📁 {currentProjectObj ? getProjName(currentProjectObj) : ''}</h2>
                 {currentProjectObj && (
@@ -678,6 +708,7 @@ function MainApp({ user, onLogout }) {
                   </button>
                 )}
               </div>
+
               {viewMode === 'kanban' ? (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 align-top">
                   {[
@@ -741,6 +772,7 @@ function MainApp({ user, onLogout }) {
                                 )}
                                 <button type="button" onClick={() => handleDeleteTask(task.id)} className="text-xs text-red-400 hover:text-red-600 shrink-0">✕</button>
                               </div>
+
                               <div className="flex flex-wrap gap-1.5 text-xs items-center justify-between">
                                 <div className="flex flex-wrap gap-1.5">
                                   {task.assignee && <span className="bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-md font-medium">👤 {task.assignee}</span>}
@@ -756,6 +788,7 @@ function MainApp({ user, onLogout }) {
                                   <option value="LOW">✅ Thấp</option>
                                 </select>
                               </div>
+
                               {totalItems > 0 && (
                                 <div className="space-y-1">
                                   <div className="flex justify-between text-xs text-gray-500">
@@ -767,6 +800,7 @@ function MainApp({ user, onLogout }) {
                                   </div>
                                 </div>
                               )}
+
                               <div className="space-y-1.5 pt-1">
                                 {task.checklists.map(item => (
                                   <div key={item.id} className="flex items-center justify-between text-xs group">
@@ -778,6 +812,7 @@ function MainApp({ user, onLogout }) {
                                   </div>
                                 ))}
                               </div>
+
                               <form onSubmit={(e) => handleAddChecklist(task.id, e)} className="space-y-1 pt-1">
                                 <div className="grid grid-cols-2 gap-1">
                                   <input 
@@ -799,6 +834,7 @@ function MainApp({ user, onLogout }) {
                                   <button type="submit" className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] px-3 py-1 rounded font-medium">{isJa ? '追加' : 'Thêm mục con'}</button>
                                 </div>
                               </form>
+
                               <div className="pt-2 border-t border-gray-100 space-y-2">
                                 <div className="flex items-center justify-between">
                                   <p className="text-[11px] font-bold text-gray-600">📎 {isJa ? '添付資料' : 'Tài liệu đính kèm'}</p>
@@ -829,6 +865,7 @@ function MainApp({ user, onLogout }) {
                                   </div>
                                 </div>
                               </div>
+
                               <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
                                 <span className="text-[11px] text-gray-400">{isJa ? 'ステータス' : 'Trạng thái'}</span>
                                 <select value={task.status} onChange={(e) => handleStatusChange(task.id, e.target.value)} className="text-xs border border-gray-200 rounded px-2 py-1 bg-white text-gray-700 font-medium">
@@ -878,6 +915,7 @@ function MainApp({ user, onLogout }) {
     </div>
   );
 }
+
 export default function App() {
   const [user] = useState("Chi");
   const handleLogout = () => {};
