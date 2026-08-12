@@ -6,7 +6,7 @@ export default function AiAssistant({ tasks, projectName }) {
   const [loading, setLoading] = useState(false);
 
   const handleSend = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || loading) return;
 
     const userMsg = input.trim();
     setInput('');
@@ -16,13 +16,15 @@ export default function AiAssistant({ tasks, projectName }) {
     // Thu thập dữ liệu tiến độ & danh sách task thực tế
     const projectData = {
       projectName: projectName || "Oishii BBQ",
-      progress: tasks ? `${tasks.filter(t => t.completed).length}/${tasks.length} mục` : "0/0 mục",
+      progress: tasks && tasks.length > 0 
+        ? `${tasks.filter(t => t.completed || t.status === 'Done').length}/${tasks.length} mục (${Math.round((tasks.filter(t => t.completed || t.status === 'Done').length / tasks.length) * 100)}%)` 
+        : "0/0 mục (0%)",
       taskList: tasks || []
     };
 
     try {
-      // Gọi sang Backend (đã deploy trên Render)
-      const res = await fetch('/api/chat', {
+      // Đã sửa đường dẫn thành /api/ai/chat cho khớp với Backend
+      const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -32,8 +34,14 @@ export default function AiAssistant({ tasks, projectName }) {
       });
 
       const data = await res.json();
-      setMessages(prev => [...prev, { sender: 'bot', text: data.reply }]);
+
+      if (res.ok && data.reply) {
+        setMessages(prev => [...prev, { sender: 'bot', text: data.reply }]);
+      } else {
+        setMessages(prev => [...prev, { sender: 'bot', text: data.error || 'Có lỗi xảy ra khi xử lý phản hồi từ AI.' }]);
+      }
     } catch (err) {
+      console.error("Lỗi gửi tin nhắn AI:", err);
       setMessages(prev => [...prev, { sender: 'bot', text: 'Lỗi kết nối tới server AI.' }]);
     } finally {
       setLoading(false);
@@ -43,6 +51,11 @@ export default function AiAssistant({ tasks, projectName }) {
   return (
     <div className="ai-assistant-container">
       <div className="chat-box">
+        {messages.length === 0 && (
+          <div className="message bot">
+            Xin chào! Tôi là Trợ lý AI trò chuyện. Bạn có thể hỏi về tiến độ, công việc hoặc bất kỳ thông tin gì trong dự án!
+          </div>
+        )}
         {messages.map((msg, index) => (
           <div key={index} className={`message ${msg.sender}`}>
             {msg.text}
@@ -59,7 +72,7 @@ export default function AiAssistant({ tasks, projectName }) {
           placeholder="Nhập nội dung trao đổi với AI..."
           onKeyDown={(e) => e.key === 'Enter' && handleSend()}
         />
-        <button onClick={handleSend}>Gửi</button>
+        <button onClick={handleSend} disabled={loading}>Gửi</button>
       </div>
     </div>
   );
