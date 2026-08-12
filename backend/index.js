@@ -51,7 +51,7 @@ Dữ liệu công việc thực tế hiện tại trong hệ thống:
 Nhiệm vụ: Trả lời người dùng bằng tiếng Việt ngắn gọn, rõ ràng dựa vào danh sách task.
 `;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash", systemInstruction });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash", systemInstruction });
     const result = await model.generateContent(message);
     res.json({ reply: result.response.text() });
   } catch (error) {
