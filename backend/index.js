@@ -18,7 +18,16 @@ app.use(express.static(frontendPath));
 // --- CÁC ROUTE API CỦA BẠN ---
 app.get('/api/data', async (req, res) => {
   try {
-    const projects = await prisma.project.findMany({ include: { tasks: true } });
+    const projects = await prisma.project.findMany({ 
+      include: { 
+        tasks: { 
+          include: { 
+            checklists: true, 
+            attachments: true 
+          } 
+        } 
+      } 
+    });
     res.json(projects);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -28,6 +37,7 @@ app.get('/api/data', async (req, res) => {
 app.post('/api/data', async (req, res) => {
   try {
     const { projects } = req.body;
+    // Bạn có thể bổ sung logic lưu database Prisma tại đây nếu cần
     res.json({ success: true, message: "Đã lưu dữ liệu lên mây thành công!" });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -50,7 +60,6 @@ Dữ liệu công việc thực tế hiện tại trong hệ thống:
 Nhiệm vụ: Trả lời người dùng bằng tiếng Việt ngắn gọn, rõ ràng dựa vào danh sách task.
 `;
 
-    // Cập nhật endpoint dùng v1 và model gemini-1.5-flash (hoặc gemini-2.0-flash)
     const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -72,15 +81,15 @@ Nhiệm vụ: Trả lời người dùng bằng tiếng Việt ngắn gọn, rõ
   }
 });
 
-// Route Phân tích Task
+// Route Phân tích Task (Đã sửa lỗi cú pháp URL fetch)
 app.post('/api/ai/parse-task', async (req, res) => {
   try {
     const { text } = req.body;
     if (!apiKey) return res.status(500).json({ error: "Chưa cấu hình GEMINI_API_KEY trên Render!" });
 
-    const prompt = `Đọc đoạn mô tả sau và bóc tách thành các trường thông tin chuẩn dưới dạng JSON (chỉ trả về JSON thuần, không bọc trong ```json) gồm các field: title, assignee, priority. Nội dung: "${text}"`;
+    const prompt = `Đọc đoạn mô tả sau và bóc tách thành các trường thông tin chuẩn dưới dạng JSON (chỉ trả về JSON thuần, không bọc trong \`\`\`json) gồm các field: title, assignee, priority. Nội dung: "${text}"`;
 
-    const response = await fetch(`[https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$](https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$){apiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
