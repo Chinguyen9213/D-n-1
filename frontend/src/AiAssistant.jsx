@@ -1,35 +1,66 @@
-// --- HÀM XỬ LÝ TRỢ LÝ AI (Agent 1 & Agent 2) ---
-const handleAiQuery = (userQuery, tasksList) => {
-  const query = userQuery.toLowerCase();
-  
-  // Agent 1: Bóc tách từ khóa mục tiêu (entity) từ câu hỏi tự do
-  // Tìm xem câu hỏi nhắc đến từ khóa nào có trong danh sách task
-  const matchedTask = tasksList.find(t => {
-    const titleVi = (t.titleVi || '').toLowerCase();
-    const titleJa = (t.titleJa || '').toLowerCase();
-    // Kiểm tra xem tiêu đề task có chứa từ khóa người dùng gõ không (ví dụ: "logo", "bảng giá")
-    // Tách các từ trong query để quét tìm kiếm linh hoạt hơn
-    const keywords = query.split(/\s+/).filter(word => word.length > 1);
-    return keywords.some(kw => titleVi.includes(kw) || titleJa.includes(kw));
-  });
+import React, { useState } from 'react';
 
-  if (!matchedTask) {
-    return {
-      status: "Không tìm thấy",
-      detail: "Không tìm thấy công việc nào khớp với từ khóa bạn hỏi.",
-      attachments: []
+export default function AiAssistant({ tasks, projectName }) {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSend = async () => {
+    if (!input.trim()) return;
+
+    const userMsg = input.trim();
+    setInput('');
+    setMessages(prev => [...prev, { sender: 'user', text: userMsg }]);
+    setLoading(true);
+
+    // Thu thập dữ liệu tiến độ & danh sách task thực tế
+    const projectData = {
+      projectName: projectName || "Oishii BBQ",
+      progress: tasks ? `${tasks.filter(t => t.completed).length}/${tasks.length} mục` : "0/0 mục",
+      taskList: tasks || []
     };
-  }
 
-  // Agent 2: Truy xuất thông tin từ state tasks & checklist
-  const totalSteps = matchedTask.checklists ? matchedTask.checklists.length : 0;
-  const completedSteps = matchedTask.checklists ? matchedTask.checklists.filter(c => c.completed).length : 0;
-  
-  return {
-    taskTitle: matchedTask.titleVi || matchedTask.titleJa,
-    status: matchedTask.status, // "Cần Làm", "Đang Làm", "Đã Xong"
-    progressText: totalSteps > 0 ? `Đã xong ${completedSteps}/${totalSteps} bước checklist` : "Chưa có bước checklist chi tiết",
-    checklists: matchedTask.checklists || [],
-    attachments: matchedTask.attachments || []
+    try {
+      // Gọi sang Backend (đã deploy trên Render)
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userMsg,
+          projectData: projectData
+        })
+      });
+
+      const data = await res.json();
+      setMessages(prev => [...prev, { sender: 'bot', text: data.reply }]);
+    } catch (err) {
+      setMessages(prev => [...prev, { sender: 'bot', text: 'Lỗi kết nối tới server AI.' }]);
+    } finally {
+      setLoading(false);
+    }
   };
-};
+
+  return (
+    <div className="ai-assistant-container">
+      <div className="chat-box">
+        {messages.map((msg, index) => (
+          <div key={index} className={`message ${msg.sender}`}>
+            {msg.text}
+          </div>
+        ))}
+        {loading && <div className="message bot">AI đang kiểm tra tiến độ...</div>}
+      </div>
+
+      <div className="chat-input-area">
+        <input 
+          type="text" 
+          value={input} 
+          onChange={(e) => setInput(e.target.value)} 
+          placeholder="Nhập nội dung trao đổi với AI..."
+          onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+        />
+        <button onClick={handleSend}>Gửi</button>
+      </div>
+    </div>
+  );
+}
