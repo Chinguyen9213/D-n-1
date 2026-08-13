@@ -8,18 +8,18 @@ const PRIORITIES = {
   LOW: { labelVi: '✅ Thấp', labelJa: '✅ 低', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' }
 };
 
-// Hàm loại bỏ dấu tiếng Việt để tìm kiếm chính xác hơn
-function removeVietnameseTones(str) {
+// Hàm chuẩn hóa chuỗi: Bỏ dấu tiếng Việt, chuyển chữ thường, bỏ ký tự đặc biệt
+function normalizeString(str) {
   if (!str) return '';
-  str = str.toLowerCase();
-  str = str.replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g, "a");
-  str = str.replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g, "e");
-  str = str.replace(/ì|í|ị|ỉ|ĩ/g, "i");
-  str = str.replace(/ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ/g, "o");
-  str = str.replace(/ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ/g, "u");
-  str = str.replace(/ỳ|ý|ỵ|ỷ|ỹ/g, "y");
-  str = str.replace(/đ/g, "d");
-  return str;
+  if (typeof str !== 'string') str = String(str);
+  return str
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'd')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .trim();
 }
 
 // --- TRỢ LÝ AI CHAT CỤC BỘ (Local Agent) ---
@@ -58,36 +58,33 @@ function AiAssistant({ isJa, tasks, projectName }) {
     setLoading(true);
 
     setTimeout(() => {
-      const cleanQuery = removeVietnameseTones(userText);
+      const normalizedQuery = normalizeString(userText);
+      const queryWords = normalizedQuery.split(/\s+/).filter(w => w.length > 0);
       const currentTasks = tasks || [];
 
-      // Tách từ khóa tìm kiếm
-      const keywords = cleanQuery.split(/\s+/).filter(k => k.length > 0);
+      // Thuật toán Deep Search: Quét toàn bộ nội dung của Task
+      const matchedTasks = currentTasks.filter(task => {
+        // Biến toàn bộ Task Object thành 1 chuỗi duy nhất để tìm kiếm
+        const fullTaskContent = normalizeString(JSON.stringify(task));
 
-      // Tìm kiếm thông minh qua Tiêu đề, Checklist, Mô tả
-      const matchedTasks = currentTasks.filter(t => {
-        const titleViClean = removeVietnameseTones(t.titleVi || t.title || '');
-        const titleJaClean = removeVietnameseTones(t.titleJa || '');
+        // Kiểm tra xem tất cả hoặc bất kỳ từ khóa nào xuất hiện trong task
+        if (queryWords.length === 0) return false;
         
-        // Kiểm tra checklist
-        const checklistMatch = (t.checklists || []).some(c => {
-          const cVi = removeVietnameseTones(c.textVi || c.text || '');
-          const cJa = removeVietnameseTones(c.textJa || c.text || '');
-          return keywords.some(kw => cVi.includes(kw) || cJa.includes(kw));
-        });
+        // 1. Khớp chính xác cụm từ người dùng nhập
+        if (fullTaskContent.includes(normalizedQuery)) return true;
 
-        // Kiểm tra từ khóa trong tiêu đề
-        const titleMatch = keywords.some(kw => titleViClean.includes(kw) || titleJaClean.includes(kw));
-
-        return titleMatch || checklistMatch;
+        // 2. Khớp từng từ khóa đơn lẻ (như "logo", "tạo")
+        return queryWords.some(word => word.length > 1 && fullTaskContent.includes(word));
       });
 
       if (matchedTasks.length === 0) {
-        const allTaskTitles = currentTasks.map(t => `• ${t.titleVi || t.titleJa}`).join('\n');
+        const allTaskTitles = currentTasks
+          .map(t => `• ${t.titleVi || t.titleJa || t.title || 'Công việc không tên'}`)
+          .join('\n');
         
         setChatHistory(prev => [...prev, {
           sender: 'ai',
-          textVi: `Không tìm thấy công việc nào khớp với từ khóa: "${userText}".\n\n📌 Các công việc hiện có trong dự án "${projectName || 'hiện tại'}":\n${allTaskTitles || '(Chưa có công việc nào)'}`,
+          textVi: `Không tìm thấy công việc nào khớp với từ khóa: "${userText}".\n\n📌 Danh sách các task hiện có trong dự án "${projectName || 'hiện tại'}":\n${allTaskTitles || '(Chưa có công việc nào)'}`,
           textJa: `キーワードに一致するタスクが見つかりませんでした: "${userText}"。`,
           result: null
         }]);
@@ -95,28 +92,30 @@ function AiAssistant({ isJa, tasks, projectName }) {
         return;
       }
 
-      // Trả về task đầu tiên tìm thấy
+      // Trả về tất cả các task khớp tìm được
       const matchedTask = matchedTasks[0];
       const checklists = matchedTask.checklists || [];
       const totalSteps = checklists.length;
       const completedSteps = checklists.filter(c => c.completed).length;
 
       const aiResult = {
-        taskTitle: matchedTask.titleVi || matchedTask.titleJa,
+        taskTitle: matchedTask.titleVi || matchedTask.titleJa || matchedTask.title || 'Công việc',
         status: matchedTask.status || 'Cần Làm',
         progressText: totalSteps > 0 ? `Đã xong ${completedSteps}/${totalSteps} bước checklist` : "Chưa có bước checklist chi tiết",
         checklists: checklists,
         attachments: matchedTask.attachments || []
       };
 
+      const foundCountText = matchedTasks.length > 1 ? ` (Tìm thấy ${matchedTasks.length} task phù hợp, hiển thị task khớp nhất)` : '';
+
       setChatHistory(prev => [...prev, {
         sender: 'ai',
-        textVi: `Dưới đây là thông tin chi tiết cho công việc bạn yêu cầu trong dự án "${projectName || "Oishii BBQ"}":`,
+        textVi: `Dưới đây là thông tin chi tiết công việc tìm thấy trong dự án "${projectName || "Oishii BBQ"}"${foundCountText}:`,
         textJa: `プロジェクト "${projectName || "Oishii BBQ"}" 内のタスク詳細情報です:`,
         result: aiResult
       }]);
       setLoading(false);
-    }, 300);
+    }, 200);
   };
 
   return (
@@ -158,7 +157,7 @@ function AiAssistant({ isJa, tasks, projectName }) {
                       <ul className="list-disc pl-4 mt-1 space-y-1 text-gray-600">
                         {chat.result.checklists.map((c, i) => (
                           <li key={i} className={c.completed ? "line-through text-gray-400" : ""}>
-                            {c.textVi || c.text} {c.completed ? "✓" : "..."}
+                            {c.textVi || c.textJa || c.text} {c.completed ? "✓" : "..."}
                           </li>
                         ))}
                       </ul>
@@ -192,7 +191,7 @@ function AiAssistant({ isJa, tasks, projectName }) {
         {loading && (
           <div className="flex justify-start">
             <div className="bg-purple-100 text-purple-700 p-2 rounded-xl text-[11px] italic animate-pulse">
-              🤖 AI đang quét trạng thái và checklist công việc...
+              🤖 AI đang tìm kiếm công việc...
             </div>
           </div>
         )}
@@ -277,13 +276,16 @@ function MainApp({ user, onLogout }) {
       {
         id: 1,
         projectId: 'p1',
-        titleVi: 'Xây dựng quy trình SOP',
-        titleJa: 'SOPプロセスの構築',
-        status: 'Cần Làm',
+        titleVi: 'Thiết kế Logo Oishii BBQ',
+        titleJa: 'Oishii BBQのロゴデザイン',
+        status: 'Đang Làm',
         priority: 'HIGH',
         assignee: 'Chi',
-        dueDate: '2026-08-10',
-        checklists: [],
+        dueDate: '2026-08-20',
+        checklists: [
+          { id: 101, textVi: 'Vẽ phác thảo 3 mẫu logo', textJa: '3つのロゴ案を作成', completed: true },
+          { id: 102, textVi: 'Chốt màu sắc nhận diện', textJa: 'カラー決定', completed: false }
+        ],
         attachments: []
       }
     ];
@@ -349,8 +351,8 @@ function MainApp({ user, onLogout }) {
   };
 
   const getProjName = (p) => (isJa ? (p.nameJa || p.nameVi) : (p.nameVi || p.nameJa));
-  const getTaskTitle = (task) => (isJa ? (task.titleJa || task.titleVi) : (task.titleVi || task.titleJa));
-  const getChecklistText = (item) => (isJa ? (item.textJa || item.textVi) : (item.textVi || item.textJa));
+  const getTaskTitle = (task) => (isJa ? (task.titleJa || task.titleVi || task.title) : (task.titleVi || task.titleJa || task.title));
+  const getChecklistText = (item) => (isJa ? (item.textJa || item.textVi || item.text) : (item.textVi || item.textJa || item.text));
 
   const handleDeleteProject = (projectId, e) => {
     if (e) { e.stopPropagation(); e.preventDefault(); }
@@ -527,10 +529,9 @@ function MainApp({ user, onLogout }) {
   const currentProjectTasks = tasks.filter(t => t.projectId === currentView);
   
   const filteredTasks = currentProjectTasks.filter(t => {
-    const title = getTaskTitle(t).toLowerCase();
-    const assigneeName = (t.assignee || '').toLowerCase();
-    const matchSearch = removeVietnameseTones(title).includes(removeVietnameseTones(searchTerm)) || 
-                        removeVietnameseTones(assigneeName).includes(removeVietnameseTones(searchTerm));
+    const fullText = normalizeString(JSON.stringify(t));
+    const searchNormalized = normalizeString(searchTerm);
+    const matchSearch = !searchTerm || fullText.includes(searchNormalized);
     const matchAssignee = filterAssignee === 'all' || t.assignee === filterAssignee;
     const matchPriority = filterPriority === 'all' || t.priority === filterPriority;
     return matchSearch && matchAssignee && matchPriority;
@@ -656,7 +657,7 @@ function MainApp({ user, onLogout }) {
               />
 
               {(() => {
-                const projChecklists = currentProjectTasks.flatMap(t => t.checklists);
+                const projChecklists = currentProjectTasks.flatMap(t => t.checklists || []);
                 const projTotal = projChecklists.length;
                 const projCompleted = projChecklists.filter(c => c.completed).length;
                 const projPercent = projTotal > 0 ? Math.round((projCompleted / projTotal) * 100) : 0;
@@ -758,8 +759,9 @@ function MainApp({ user, onLogout }) {
                         </div>
 
                         {statusTasks.map(task => {
-                          const totalItems = task.checklists.length;
-                          const completedItems = task.checklists.filter(c => c.completed).length;
+                          const checklists = task.checklists || [];
+                          const totalItems = checklists.length;
+                          const completedItems = checklists.filter(c => c.completed).length;
                           const progressPercent = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
                           const priorityInfo = PRIORITIES[task.priority] || PRIORITIES['MEDIUM'];
 
@@ -795,7 +797,7 @@ function MainApp({ user, onLogout }) {
                                       type="button"
                                       onClick={() => {
                                         setEditingTaskId(task.id);
-                                        setEditTitleVi(task.titleVi || '');
+                                        setEditTitleVi(task.titleVi || task.title || '');
                                         setEditTitleJa(task.titleJa || '');
                                       }}
                                       className="text-gray-400 hover:text-blue-600 text-xs"
@@ -837,7 +839,7 @@ function MainApp({ user, onLogout }) {
                               )}
 
                               <div className="space-y-1.5 pt-1">
-                                {task.checklists.map(item => (
+                                {checklists.map(item => (
                                   <div key={item.id} className="flex items-center justify-between text-xs group">
                                     <label className="flex items-center gap-2 cursor-pointer flex-1 pr-2">
                                       <input type="checkbox" checked={item.completed} onChange={() => toggleChecklist(task.id, item.id)} className="rounded text-blue-600 w-3.5 h-3.5" />
