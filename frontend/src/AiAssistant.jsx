@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export function AiAssistant({ isJa, tasks, projectName }) {
+export function AiAssistant({ isJa, tasks = [], projectName }) {
   const [inputContent, setInputContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [attachedFile, setAttachedFile] = useState(null);
@@ -14,39 +14,58 @@ export function AiAssistant({ isJa, tasks, projectName }) {
     }
   ]);
 
+  // Hàm loại bỏ dấu Tiếng Việt để so sánh chính xác hơn
+  const normalizeStr = (str) => {
+    if (!str) return '';
+    return str
+      .toString()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .trim();
+  };
+
+  // Thuật toán quét và tìm kiếm task đa năng
+  const searchLocalTasks = (query) => {
+    const rawQuery = (query || '').trim();
+    if (!rawQuery) return [];
+
+    const normQuery = normalizeStr(rawQuery);
+    const keywords = normQuery.split(/\s+/).filter(w => w.length > 0);
+
+    return (tasks || []).filter(t => {
+      // 1. Gom tất cả các biến số tiêu đề có thể có
+      const title = t.titleVi || t.titleJa || t.title || t.name || '';
+      
+      // 2. Gom tất cả checklist text
+      const checklists = t.checklists || t.items || [];
+      const checklistsText = checklists
+        .map(c => `${c.textVi || ''} ${c.textJa || ''} ${c.text || ''} ${c.title || ''}`)
+        .join(' ');
+
+      // 3. Gom tất cả file / url đính kèm
+      const attachments = t.attachments || t.files || [];
+      const attachmentsText = attachments
+        .map(a => `${a.name || ''} ${a.filename || ''} ${a.url || ''}`)
+        .join(' ');
+
+      // 4. Gom thông tin người phụ trách & trạng thái
+      const assignee = t.assignee || t.user || '';
+      const status = t.status || '';
+
+      const fullText = `${title} ${checklistsText} ${attachmentsText} ${assignee} ${status}`;
+      const normFullText = normalizeStr(fullText);
+
+      // Kiểm tra chỉ cần chứa chuỗi gốc HOẶC chứa bất kỳ từ khóa nào
+      return normFullText.includes(normQuery) || keywords.some(kw => normFullText.includes(kw));
+    });
+  };
+
   const handleFileUploadToAi = (e) => {
     const file = e.target.files[0];
     if (!file) return;
     setAttachedFile(file);
-  };
-
-  // Hàm quét cục bộ nâng cấp (Quét Task + Checklist + Attachments)
-  const searchLocalTasks = (query) => {
-    const currentTasks = tasks || [];
-    const keywords = query.toLowerCase().split(/\s+/).filter(word => word.length > 0);
-
-    return currentTasks.filter(t => {
-      const titleVi = (t.titleVi || t.title || '').toLowerCase();
-      const titleJa = (t.titleJa || '').toLowerCase();
-      const assignee = (t.assignee || '').toLowerCase();
-
-      // Gom toàn bộ checklist text
-      const checklistsText = (t.checklists || [])
-        .map(c => `${c.textVi || ''} ${c.textJa || ''} ${c.text || ''}`)
-        .join(' ')
-        .toLowerCase();
-
-      // Gom toàn bộ attachment names
-      const attachmentsText = (t.attachments || [])
-        .map(a => a.name || '')
-        .join(' ')
-        .toLowerCase();
-
-      const fullTaskText = `${titleVi} ${titleJa} ${assignee} ${checklistsText} ${attachmentsText}`;
-
-      // Kiểm tra xem có từ khóa nào xuất hiện trong toàn bộ dữ liệu task hay không
-      return keywords.some(kw => fullTaskText.includes(kw));
-    });
   };
 
   const handleSendMessage = async () => {
@@ -63,15 +82,16 @@ export function AiAssistant({ isJa, tasks, projectName }) {
     if (attachedFile) setAttachedFile(null);
     setLoading(true);
 
+    // 1. Thử gọi API Backend (nếu server nodejs đang chạy)
+    let apiSuccess = false;
     try {
-      // 1. Thử gửi yêu cầu tới Backend Gemini API
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: userText,
           projectData: {
-            projectName: projectName || 'Oishii BBQ',
+            projectName: projectName || 'Dự án',
             taskList: tasks || []
           }
         })
@@ -79,52 +99,52 @@ export function AiAssistant({ isJa, tasks, projectName }) {
 
       if (res.ok) {
         const data = await res.json();
-        if (data.reply) {
+        if (data && data.reply) {
           setChatHistory(prev => [...prev, {
             sender: 'ai',
             textVi: data.reply,
             textJa: data.reply,
             result: null
           }]);
-          setLoading(false);
-          return;
+          apiSuccess = true;
         }
       }
     } catch (err) {
-      console.warn("Chưa nối backend API hoặc lỗi kết nối, chuyển sang Local Search Agent:", err);
+      console.log("Local mode active (Backend API not reached)");
     }
 
-    // 2. Nếu Backend chưa chạy hoặc lỗi API -> Sử dụng Local Search Agent thông minh
-    const matchedTasks = searchLocalTasks(userText);
+    // 2. Nếu không gọi API thành công -> Sử dụng Local Smart Search Agent
+    if (!apiSuccess) {
+      const matchedTasks = searchLocalTasks(userText);
 
-    if (matchedTasks.length === 0) {
-      setChatHistory(prev => [...prev, {
-        sender: 'ai',
-        textVi: `Không tìm thấy công việc, checklist hay tài liệu nào khớp với từ khóa: "${userText}".`,
-        textJa: `キーワードに一致する情報が見つかりませんでした: "${userText}"。`,
-        result: null
-      }]);
-    } else {
-      // Hiển thị task phù hợp nhất
-      const matchedTask = matchedTasks[0];
-      const checklists = matchedTask.checklists || [];
-      const totalSteps = checklists.length;
-      const completedSteps = checklists.filter(c => c.completed).length;
+      if (matchedTasks.length === 0) {
+        setChatHistory(prev => [...prev, {
+          sender: 'ai',
+          textVi: `Không tìm thấy công việc, mục nhỏ hay tài liệu nào liên quan đến từ khóa: "${userText}".`,
+          textJa: `キーワードに一致する情報が見つかりませんでした: "${userText}"。`,
+          result: null
+        }]);
+      } else {
+        const primaryTask = matchedTasks[0];
+        const checklists = primaryTask.checklists || primaryTask.items || [];
+        const totalSteps = checklists.length;
+        const completedSteps = checklists.filter(c => c.completed || c.done).length;
 
-      const aiResult = {
-        taskTitle: matchedTask.titleVi || matchedTask.titleJa || matchedTask.title,
-        status: matchedTask.status || 'Cần Làm',
-        progressText: totalSteps > 0 ? `Đã xong ${completedSteps}/${totalSteps} bước checklist` : "Chưa có checklist chi tiết",
-        checklists: checklists,
-        attachments: matchedTask.attachments || []
-      };
+        const aiResult = {
+          taskTitle: primaryTask.titleVi || primaryTask.titleJa || primaryTask.title || primaryTask.name || 'Công việc',
+          status: primaryTask.status || 'Cần Làm',
+          progressText: totalSteps > 0 ? `Đã hoàn thành ${completedSteps}/${totalSteps} bước` : "Chưa có danh sách checklist",
+          checklists: checklists,
+          attachments: primaryTask.attachments || primaryTask.files || []
+        };
 
-      setChatHistory(prev => [...prev, {
-        sender: 'ai',
-        textVi: `Tìm thấy ${matchedTasks.length} kết quả phù hợp với từ khóa "${userText}" trong dự án "${projectName || "Oishii BBQ"}":`,
-        textJa: `プロジェクト "${projectName || "Oishii BBQ"}" で "${userText}" に liên quan する結果が見つかりました:`,
-        result: aiResult
-      }]);
+        setChatHistory(prev => [...prev, {
+          sender: 'ai',
+          textVi: `Tìm thấy ${matchedTasks.length} kết quả liên quan đến "${userText}" trong dự án "${projectName || "Oishii BBQ"}":`,
+          textJa: `プロジェクト "${projectName || "Oishii BBQ"}" 内で "${userText}" に関連する結果が見つかりました:`,
+          result: aiResult
+        }]);
+      }
     }
 
     setLoading(false);
@@ -134,7 +154,7 @@ export function AiAssistant({ isJa, tasks, projectName }) {
     <div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-4 rounded-xl border border-purple-200 shadow-sm space-y-3">
       <div className="flex justify-between items-center">
         <h3 className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
-          💬 {isJa ? 'AIアシスタントチャット (Gemini & Local Agent)' : 'Trợ Lý AI Trò Chuyện & Hỗ Trợ (Gemini & Local Agent)'}
+          💬 {isJa ? 'AIアシスタントチャット (Local Agent)' : 'Trợ Lý AI Trò Chuyện & Hỗ Trợ (Local Agent)'}
         </h3>
         <span className="text-[10px] bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full font-semibold">Active</span>
       </div>
@@ -150,14 +170,15 @@ export function AiAssistant({ isJa, tasks, projectName }) {
               <p className="whitespace-pre-wrap">{isJa ? (chat.textJa || chat.textVi) : (chat.textVi || chat.textJa)}</p>
 
               {chat.result && (
-                <div className="mt-2 pt-2 border-t border-purple-200 space-y-2 text-xs text-gray-800 bg-white/60 p-2 rounded-lg">
+                <div className="mt-2 pt-2 border-t border-purple-200 space-y-2 text-xs text-gray-800 bg-white/80 p-2.5 rounded-lg shadow-xs">
                   <div className="font-bold text-purple-900 text-[13px]">📌 Công việc: "{chat.result.taskTitle}"</div>
 
-                  <div>
-                    <span className="font-semibold text-gray-500">Trạng thái: </span>
-                    <span className={`px-2 py-0.5 rounded font-bold ${
-                      chat.result.status === 'Đã Xong' ? 'bg-green-100 text-green-700' :
-                      chat.result.status === 'Đang Làm' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-gray-500">Trạng thái:</span>
+                    <span className={`px-2 py-0.5 rounded font-bold text-[11px] ${
+                      chat.result.status === 'Đã Xong' ? 'bg-green-100 text-green-700 border border-green-200' :
+                      chat.result.status === 'Đang Làm' ? 'bg-blue-100 text-blue-700 border border-blue-200' : 
+                      'bg-yellow-100 text-yellow-800 border border-yellow-200'
                     }`}>
                       {chat.result.status}
                     </span>
@@ -167,10 +188,10 @@ export function AiAssistant({ isJa, tasks, projectName }) {
                     <span className="font-semibold text-gray-500">Tiến độ chi tiết: </span>
                     <span className="font-medium text-gray-700">{chat.result.progressText}</span>
                     {chat.result.checklists.length > 0 && (
-                      <ul className="list-disc pl-4 mt-1 space-y-1 text-gray-600">
+                      <ul className="list-disc pl-4 mt-1 space-y-0.5 text-gray-600">
                         {chat.result.checklists.map((c, i) => (
-                          <li key={i} className={c.completed ? "line-through text-gray-400" : ""}>
-                            {c.textVi || c.textJa || c.text} {c.completed ? "✓" : "..."}
+                          <li key={i} className={c.completed || c.done ? "line-through text-gray-400" : ""}>
+                            {c.textVi || c.textJa || c.text || c.title} {c.completed || c.done ? "✓" : "..."}
                           </li>
                         ))}
                       </ul>
@@ -179,18 +200,18 @@ export function AiAssistant({ isJa, tasks, projectName }) {
 
                   {chat.result.attachments && chat.result.attachments.length > 0 && (
                     <div className="pt-2 border-t border-purple-100 space-y-1.5">
-                      <span className="font-semibold text-gray-500 block">File / Tài liệu đính kèm:</span>
+                      <span className="font-semibold text-gray-500 block">File / Link đính kèm:</span>
                       <div className="flex flex-wrap gap-1.5">
                         {chat.result.attachments.map((att, i) => (
                           <a
                             key={i}
-                            href={att.url}
+                            href={att.url || '#'}
                             target="_blank"
                             rel="noreferrer"
                             download={att.type === 'file' ? att.name : undefined}
-                            className="inline-flex items-center gap-1 bg-purple-50 border border-purple-300 text-purple-700 hover:bg-purple-100 font-semibold px-2.5 py-1 rounded-md shadow-xs transition"
+                            className="inline-flex items-center gap-1 bg-purple-50 border border-purple-300 text-purple-700 hover:bg-purple-100 font-semibold px-2.5 py-1 rounded-md transition"
                           >
-                            {att.type === 'file' ? '💾' : '🔗'} {att.name}
+                            {att.type === 'file' ? '💾' : '🔗'} {att.name || att.filename || 'Tài liệu'}
                           </a>
                         ))}
                       </div>
