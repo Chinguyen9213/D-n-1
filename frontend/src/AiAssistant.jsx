@@ -1,27 +1,15 @@
 import React, { useState } from 'react';
 
-// 1. Hàm chuẩn hóa chuỗi: Khử dấu tiếng Việt, loại bỏ khoảng trắng thừa, chuyển về chữ thường
-const normalizeText = (text) => {
-  if (!text) return '';
-  return text
-    .toString()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/đ/g, "d")
-    .trim();
-};
-
-export default function AiAssistant({ isJa, tasks, projectName }) {
+export function AiAssistant({ isJa, tasks, projectName }) {
   const [inputContent, setInputContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [attachedFile, setAttachedFile] = useState(null);
-  
+
   const [chatHistory, setChatHistory] = useState([
     {
       sender: 'ai',
-      textVi: 'Xin chào Chi! Tôi là Trợ lý AI cục bộ. Bạn có thể hỏi về tiến độ công việc hoặc tra cứu thông tin (VD: "logo", "bảng giá"...).',
-      textJa: 'こんにちは！ローカルAIアシスタントです。タスクの進捗や情報についてお気軽にご質問ください。',
+      textVi: 'Xin chào! Tôi là Trợ lý AI. Bạn có thể hỏi về tiến độ công việc hoặc tra cứu thông tin trong dự án (VD: "logo", "quy trình", "SOP"...).',
+      textJa: 'こんにちは！AIアシスタントです。タスクの進捗や情報についてお気軽にご質問ください。',
       result: null
     }
   ]);
@@ -39,8 +27,7 @@ export default function AiAssistant({ isJa, tasks, projectName }) {
     const userText = inputContent.trim();
     const fileName = attachedFile ? attachedFile.name : '';
     const displayMsg = userText + (fileName ? ` (📎 Đính kèm: ${fileName})` : '');
-    
-    // Đưa tin nhắn của user vào khung chat
+
     setChatHistory(prev => [...prev, { sender: 'user', textVi: displayMsg, textJa: displayMsg, result: null }]);
     
     setInputContent('');
@@ -48,41 +35,21 @@ export default function AiAssistant({ isJa, tasks, projectName }) {
     setLoading(true);
 
     setTimeout(() => {
-      const cleanQuery = normalizeText(userText);
+      const query = userText.toLowerCase();
       const currentTasks = tasks || [];
 
-      // --- THUẬT TOÁN MỚI: QUÉT TẤT CẢ CÁC CẤP (TASK LỚN + MỤC CON / CHECKLIST) ---
+      // Phân tích tìm kiếm task phù hợp từ danh sách props
       const matchedTask = currentTasks.find(t => {
-        // A. Chuẩn hóa tiêu đề task chính & người phụ trách
-        const titleVi = normalizeText(t.titleVi || t.title || '');
-        const titleJa = normalizeText(t.titleJa || '');
-        const assignee = normalizeText(t.assignee || '');
-
-        // Khớp ở Task lớn
-        const matchMainTask = titleVi.includes(cleanQuery) || 
-                              titleJa.includes(cleanQuery) || 
-                              assignee.includes(cleanQuery);
-
-        // B. Khớp ở Mục con (Checklist / Subtask)
-        const checklists = t.checklists || t.subtasks || [];
-        const matchChecklist = checklists.some(item => {
-          const itemTextVi = normalizeText(item.textVi || item.text || item.title || item.name || '');
-          const itemTextJa = normalizeText(item.textJa || item.titleJa || '');
-          return itemTextVi.includes(cleanQuery) || itemTextJa.includes(cleanQuery);
-        });
-
-        // C. Khớp ở File đính kèm
-        const attachments = t.attachments || [];
-        const matchAttachment = attachments.some(att => normalizeText(att.name || att.title || '').includes(cleanQuery));
-
-        // Nếu khớp bất kỳ điều kiện nào thì trả về Task đó
-        return matchMainTask || matchChecklist || matchAttachment;
+        const titleVi = (t.titleVi || t.title || '').toLowerCase();
+        const titleJa = (t.titleJa || '').toLowerCase();
+        const keywords = query.split(/\s+/).filter(word => word.length > 1);
+        return keywords.some(kw => titleVi.includes(kw) || titleJa.includes(kw));
       });
 
       if (!matchedTask) {
         setChatHistory(prev => [...prev, {
           sender: 'ai',
-          textVi: `Không tìm thấy công việc nào khớp với từ khóa trong câu hỏi: "${userText}". Bạn có thể thử lại với tên task cụ thể hơn nhé!`,
+          textVi: `Không tìm thấy công việc nào khớp với từ khóa: "${userText}". Bạn có thể thử lại với tên công việc cụ thể hơn.`,
           textJa: `キーワードに一致するタスクが見つかりませんでした: "${userText}"。`,
           result: null
         }]);
@@ -90,10 +57,9 @@ export default function AiAssistant({ isJa, tasks, projectName }) {
         return;
       }
 
-      // Lấy dữ liệu checklist để hiển thị tiến độ
-      const checklists = matchedTask.checklists || matchedTask.subtasks || [];
+      const checklists = matchedTask.checklists || [];
       const totalSteps = checklists.length;
-      const completedSteps = checklists.filter(c => c.completed || c.status === 'Done').length;
+      const completedSteps = checklists.filter(c => c.completed).length;
 
       const aiResult = {
         taskTitle: matchedTask.titleVi || matchedTask.titleJa || matchedTask.title,
@@ -109,7 +75,6 @@ export default function AiAssistant({ isJa, tasks, projectName }) {
         textJa: `プロジェクト "${projectName || "Oishii BBQ"}" 内のタスク詳細情報です:`,
         result: aiResult
       }]);
-
       setLoading(false);
     }, 300);
   };
@@ -132,11 +97,11 @@ export default function AiAssistant({ isJa, tasks, projectName }) {
                 : 'bg-purple-100/90 text-purple-900 rounded-bl-none border border-purple-200 space-y-2'
             }`}>
               <p>{isJa ? (chat.textJa || chat.textVi) : (chat.textVi || chat.textJa)}</p>
-              
+
               {chat.result && (
                 <div className="mt-2 pt-2 border-t border-purple-200 space-y-2 text-xs text-gray-800 bg-white/60 p-2 rounded-lg">
                   <div className="font-bold text-purple-900 text-[13px]">📌 Công việc: "{chat.result.taskTitle}"</div>
-                  
+
                   <div>
                     <span className="font-semibold text-gray-500">Trạng thái: </span>
                     <span className={`px-2 py-0.5 rounded font-bold ${
@@ -153,8 +118,8 @@ export default function AiAssistant({ isJa, tasks, projectName }) {
                     {chat.result.checklists.length > 0 && (
                       <ul className="list-disc pl-4 mt-1 space-y-1 text-gray-600">
                         {chat.result.checklists.map((c, i) => (
-                          <li key={i} className={c.completed || c.status === 'Done' ? "line-through text-gray-400" : ""}>
-                            {c.textVi || c.text || c.name} {c.completed || c.status === 'Done' ? "✓" : "..."}
+                          <li key={i} className={c.completed ? "line-through text-gray-400" : ""}>
+                            {c.textVi || c.text} {c.completed ? "✓" : "..."}
                           </li>
                         ))}
                       </ul>
@@ -185,7 +150,6 @@ export default function AiAssistant({ isJa, tasks, projectName }) {
             </div>
           </div>
         ))}
-
         {loading && (
           <div className="flex justify-start">
             <div className="bg-purple-100 text-purple-700 p-2 rounded-xl text-[11px] italic animate-pulse">
@@ -207,7 +171,7 @@ export default function AiAssistant({ isJa, tasks, projectName }) {
           📎 Gửi file
           <input type="file" onChange={handleFileUploadToAi} className="hidden" />
         </label>
-        
+
         <input
           type="text"
           placeholder="Nhập nội dung trao đổi (VD: logo, quy trình...)"
@@ -216,7 +180,7 @@ export default function AiAssistant({ isJa, tasks, projectName }) {
           onKeyDown={(e) => { if (e.key === 'Enter') handleSendMessage(); }}
           className="flex-1 text-xs border border-purple-200 rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 bg-white"
         />
-        
+
         <button
           type="button"
           onClick={handleSendMessage}
@@ -229,3 +193,5 @@ export default function AiAssistant({ isJa, tasks, projectName }) {
     </div>
   );
 }
+
+export default AiAssistant;
