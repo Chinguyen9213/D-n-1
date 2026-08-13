@@ -8,6 +8,20 @@ const PRIORITIES = {
   LOW: { labelVi: '✅ Thấp', labelJa: '✅ 低', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' }
 };
 
+// Hàm loại bỏ dấu tiếng Việt để tìm kiếm chính xác hơn
+function removeVietnameseTones(str) {
+  if (!str) return '';
+  str = str.toLowerCase();
+  str = str.replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g, "a");
+  str = str.replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g, "e");
+  str = str.replace(/ì|í|ị|ỉ|ĩ/g, "i");
+  str = str.replace(/ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ/g, "o");
+  str = str.replace(/ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ/g, "u");
+  str = str.replace(/ỳ|ý|ỵ|ỷ|ỹ/g, "y");
+  str = str.replace(/đ/g, "d");
+  return str;
+}
+
 // --- TRỢ LÝ AI CHAT CỤC BỘ (Local Agent) ---
 function AiAssistant({ isJa, tasks, projectName }) {
   const [inputContent, setInputContent] = useState('');
@@ -44,21 +58,36 @@ function AiAssistant({ isJa, tasks, projectName }) {
     setLoading(true);
 
     setTimeout(() => {
-      const query = userText.toLowerCase();
+      const cleanQuery = removeVietnameseTones(userText);
       const currentTasks = tasks || [];
 
-      // Tìm kiếm task phù hợp dựa trên từ khóa người dùng nhập vào
-      const matchedTask = currentTasks.find(t => {
-        const titleVi = (t.titleVi || t.title || '').toLowerCase();
-        const titleJa = (t.titleJa || '').toLowerCase();
-        const keywords = query.split(/\s+/).filter(word => word.length > 0);
-        return keywords.some(kw => titleVi.includes(kw) || titleJa.includes(kw));
+      // Tách từ khóa tìm kiếm
+      const keywords = cleanQuery.split(/\s+/).filter(k => k.length > 0);
+
+      // Tìm kiếm thông minh qua Tiêu đề, Checklist, Mô tả
+      const matchedTasks = currentTasks.filter(t => {
+        const titleViClean = removeVietnameseTones(t.titleVi || t.title || '');
+        const titleJaClean = removeVietnameseTones(t.titleJa || '');
+        
+        // Kiểm tra checklist
+        const checklistMatch = (t.checklists || []).some(c => {
+          const cVi = removeVietnameseTones(c.textVi || c.text || '');
+          const cJa = removeVietnameseTones(c.textJa || c.text || '');
+          return keywords.some(kw => cVi.includes(kw) || cJa.includes(kw));
+        });
+
+        // Kiểm tra từ khóa trong tiêu đề
+        const titleMatch = keywords.some(kw => titleViClean.includes(kw) || titleJaClean.includes(kw));
+
+        return titleMatch || checklistMatch;
       });
 
-      if (!matchedTask) {
+      if (matchedTasks.length === 0) {
+        const allTaskTitles = currentTasks.map(t => `• ${t.titleVi || t.titleJa}`).join('\n');
+        
         setChatHistory(prev => [...prev, {
           sender: 'ai',
-          textVi: `Không tìm thấy công việc nào khớp với từ khóa trong câu hỏi: "${userText}". Bạn có thể thử lại với tên task cụ thể hơn nhé!`,
+          textVi: `Không tìm thấy công việc nào khớp với từ khóa: "${userText}".\n\n📌 Các công việc hiện có trong dự án "${projectName || 'hiện tại'}":\n${allTaskTitles || '(Chưa có công việc nào)'}`,
           textJa: `キーワードに一致するタスクが見つかりませんでした: "${userText}"。`,
           result: null
         }]);
@@ -66,6 +95,8 @@ function AiAssistant({ isJa, tasks, projectName }) {
         return;
       }
 
+      // Trả về task đầu tiên tìm thấy
+      const matchedTask = matchedTasks[0];
       const checklists = matchedTask.checklists || [];
       const totalSteps = checklists.length;
       const completedSteps = checklists.filter(c => c.completed).length;
@@ -100,7 +131,7 @@ function AiAssistant({ isJa, tasks, projectName }) {
       <div className="bg-white/90 rounded-lg p-3 max-h-60 overflow-y-auto space-y-3 border border-purple-100 text-xs">
         {chatHistory.map((chat, idx) => (
           <div key={idx} className={`flex flex-col ${chat.sender === 'user' ? 'items-end' : 'items-start'}`}>
-            <div className={`max-w-[90%] p-2.5 rounded-xl leading-relaxed ${
+            <div className={`max-w-[90%] p-2.5 rounded-xl leading-relaxed whitespace-pre-line ${
               chat.sender === 'user' 
                 ? 'bg-purple-600 text-white rounded-br-none shadow-sm' 
                 : 'bg-purple-100/90 text-purple-900 rounded-bl-none border border-purple-200 space-y-2'
@@ -498,7 +529,8 @@ function MainApp({ user, onLogout }) {
   const filteredTasks = currentProjectTasks.filter(t => {
     const title = getTaskTitle(t).toLowerCase();
     const assigneeName = (t.assignee || '').toLowerCase();
-    const matchSearch = title.includes(searchTerm.toLowerCase()) || assigneeName.includes(searchTerm.toLowerCase());
+    const matchSearch = removeVietnameseTones(title).includes(removeVietnameseTones(searchTerm)) || 
+                        removeVietnameseTones(assigneeName).includes(removeVietnameseTones(searchTerm));
     const matchAssignee = filterAssignee === 'all' || t.assignee === filterAssignee;
     const matchPriority = filterPriority === 'all' || t.priority === filterPriority;
     return matchSearch && matchAssignee && matchPriority;
