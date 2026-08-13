@@ -22,7 +22,83 @@ function normalizeString(str) {
     .trim();
 }
 
-// --- TRỢ LÝ AI CHAT CỤC BỘ (Local Agent) ---
+// --- TRỢ LÝ AI 1: BÓC TÁCH CÔNG VIỆC (AI Task Parser) ---
+function TaskParserAi({ isJa, onTaskCreated }) {
+  const [inputText, setInputText] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const handleSendToBot = async () => {
+    if (!inputText.trim() || loading) return;
+
+    setLoading(true);
+    setErrorMessage('');
+
+    try {
+      const res = await fetch('/api/ai/parse-task', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: inputText })
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        throw new Error(result.error || `Lỗi server: ${res.status}`);
+      }
+
+      const parsedData = result.data || result.reply;
+
+      if (parsedData && onTaskCreated) {
+        onTaskCreated(parsedData);
+      }
+
+      setInputText('');
+    } catch (err) {
+      console.error("Lỗi khi bóc tách task:", err);
+      setErrorMessage(err.message || 'Lỗi kết nối server: 500');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="bg-white p-4 rounded-xl border border-blue-200 shadow-sm space-y-3">
+      <h3 className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+        🤖 {isJa ? 'AI タスク自動 bóc tách (Task Parser)' : 'Trợ lý AI Bóc tách Công việc'}
+      </h3>
+
+      <div className="flex gap-2">
+        <input
+          type="text"
+          placeholder={isJa ? 'タスクを入力 (例: đi thử món ở Homi...)' : 'Nhập tự do (VD: đi thử món ở Homi, gán cho Chi...)'}
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleSendToBot(); }}
+          className="flex-1 text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 bg-white"
+        />
+
+        <button
+          type="button"
+          onClick={handleSendToBot}
+          disabled={loading}
+          className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-sm shrink-0 disabled:opacity-50 transition"
+        >
+          {loading ? (isJa ? '処理中...' : 'Đang bóc tách...') : (isJa ? '送信' : 'Gửi cho Bot')}
+        </button>
+      </div>
+
+      {errorMessage && (
+        <div className="p-2.5 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg flex items-center gap-1.5">
+          <span>❌</span>
+          <span>Lỗi: {errorMessage}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- TRỢ LÝ AI 2: CHAT TRUY XUẤT DỮ LIỆU (Local Agent - GIỮ NGUYÊN) ---
 function AiAssistant({ isJa, tasks, projectName }) {
   const [inputContent, setInputContent] = useState('');
   const [loading, setLoading] = useState(false);
@@ -46,7 +122,6 @@ function AiAssistant({ isJa, tasks, projectName }) {
   const handleSendMessage = () => {
     if (!inputContent.trim() && !attachedFile) return;
     if (loading) return;
-
     const userText = inputContent.trim();
     const fileName = attachedFile ? attachedFile.name : '';
     const displayMsg = userText + (fileName ? ` (📎 Đính kèm: ${fileName})` : '');
@@ -62,18 +137,10 @@ function AiAssistant({ isJa, tasks, projectName }) {
       const queryWords = normalizedQuery.split(/\s+/).filter(w => w.length > 0);
       const currentTasks = tasks || [];
 
-      // Thuật toán Deep Search: Quét toàn bộ nội dung của Task
       const matchedTasks = currentTasks.filter(task => {
-        // Biến toàn bộ Task Object thành 1 chuỗi duy nhất để tìm kiếm
         const fullTaskContent = normalizeString(JSON.stringify(task));
-
-        // Kiểm tra xem tất cả hoặc bất kỳ từ khóa nào xuất hiện trong task
         if (queryWords.length === 0) return false;
-        
-        // 1. Khớp chính xác cụm từ người dùng nhập
         if (fullTaskContent.includes(normalizedQuery)) return true;
-
-        // 2. Khớp từng từ khóa đơn lẻ (như "logo", "tạo")
         return queryWords.some(word => word.length > 1 && fullTaskContent.includes(word));
       });
 
@@ -92,7 +159,6 @@ function AiAssistant({ isJa, tasks, projectName }) {
         return;
       }
 
-      // Trả về tất cả các task khớp tìm được
       const matchedTask = matchedTasks[0];
       const checklists = matchedTask.checklists || [];
       const totalSteps = checklists.length;
@@ -122,7 +188,7 @@ function AiAssistant({ isJa, tasks, projectName }) {
     <div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-4 rounded-xl border border-purple-200 shadow-sm space-y-3">
       <div className="flex justify-between items-center">
         <h3 className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
-          💬 {isJa ? 'AIアシスタントチャット (Local Agent)' : 'Trợ Lý AI Trò Chuyện & Hỗ Trợ (Local Agent)'}
+          💬 {isJa ? 'AIアシスタントチャット (Local Agent)' : 'Trợ Lý AI Trò Chuyện & Hỗ Trợ Tra Cứu (Local Agent)'}
         </h3>
         <span className="text-[10px] bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full font-semibold">Active</span>
       </div>
@@ -149,7 +215,6 @@ function AiAssistant({ isJa, tasks, projectName }) {
                       {chat.result.status}
                     </span>
                   </div>
-
                   <div>
                     <span className="font-semibold text-gray-500">Tiến độ chi tiết: </span>
                     <span className="font-medium text-gray-700">{chat.result.progressText}</span>
@@ -163,7 +228,6 @@ function AiAssistant({ isJa, tasks, projectName }) {
                       </ul>
                     )}
                   </div>
-
                   {chat.result.attachments && chat.result.attachments.length > 0 && (
                     <div className="pt-2 border-t border-purple-100 space-y-1.5">
                       <span className="font-semibold text-gray-500 block">File/Kết quả đính kèm:</span>
@@ -375,6 +439,43 @@ function MainApp({ user, onLogout }) {
     setCurrentView(newProj.id);
     setNewProjectNameVi('');
     setNewProjectNameJa('');
+  };
+
+  // Hàm tạo Task tự động khi nhận kết quả từ AI Task Parser
+  const handleAiTaskCreated = (parsedData) => {
+    const title = parsedData.title || 'Công việc mới';
+    const assignee = parsedData.assignee || user;
+    let priority = 'MEDIUM';
+
+    if (parsedData.priority) {
+      const pUpper = parsedData.priority.toUpperCase();
+      if (pUpper.includes('CAO') || pUpper.includes('HIGH')) priority = 'HIGH';
+      else if (pUpper.includes('THẤP') || pUpper.includes('LOW')) priority = 'LOW';
+    }
+
+    const newChecklists = Array.isArray(parsedData.checklists) 
+      ? parsedData.checklists.map((item, idx) => ({
+          id: Date.now() + idx,
+          textVi: typeof item === 'string' ? item : (item.textVi || item.text || 'Mục con'),
+          textJa: typeof item === 'string' ? item : (item.textJa || item.text || '小項目'),
+          completed: false
+        }))
+      : [];
+
+    const newTask = {
+      id: Date.now(),
+      projectId: currentView === 'overview' ? (projects[0]?.id || 'p1') : currentView,
+      titleVi: title,
+      titleJa: title,
+      status: 'Cần Làm',
+      priority,
+      assignee,
+      dueDate: parsedData.dueDate || '',
+      checklists: newChecklists,
+      attachments: []
+    };
+
+    setTasks(prev => [...prev, newTask]);
   };
 
   const handleAddTask = (e) => {
@@ -649,7 +750,13 @@ function MainApp({ user, onLogout }) {
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Trợ lý AI cục bộ */}
+              {/* TRỢ LÝ AI 1: BÓC TÁCH TASK */}
+              <TaskParserAi 
+                isJa={isJa} 
+                onTaskCreated={handleAiTaskCreated} 
+              />
+
+              {/* TRỢ LÝ AI 2: TRUY XUẤT DỮ LIỆU */}
               <AiAssistant 
                 isJa={isJa} 
                 tasks={currentProjectTasks} 
@@ -691,7 +798,7 @@ function MainApp({ user, onLogout }) {
               })()}
 
               <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
-                <h3 className="text-sm font-bold text-gray-800">✨ {isJa ? '新しいタスクを追加' : 'Thêm Công Việc Mới (Song ngữ Tiếng Việt & Tiếng Nhật)'}</h3>
+                <h3 className="text-sm font-bold text-gray-800">✨ {isJa ? '新しいタスクを追加' : 'Thêm Công Việc Thủ Công (Song ngữ)'}</h3>
                 <form onSubmit={handleAddTask} className="grid grid-cols-1 md:grid-cols-6 gap-3">
                   <input type="text" placeholder={isJa ? 'タスク名 (Tiếng Việt)' : 'Tên task (Tiếng Việt)'} value={newTaskTitleVi} onChange={(e) => setNewTaskTitleVi(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-blue-500 md:col-span-2" />
                   <input type="text" placeholder={isJa ? 'タスク名 (日本語)' : 'Tên task (Tiếng Nhật)'} value={newTaskTitleJa} onChange={(e) => setNewTaskTitleJa(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-blue-500 md:col-span-2" />
@@ -757,14 +864,12 @@ function MainApp({ user, onLogout }) {
                           <span className="font-semibold text-gray-700 text-sm">{col.icon} {isJa ? col.labelJa : col.labelVi}</span>
                           <span className="bg-white text-gray-600 text-xs px-2 py-0.5 rounded-full border border-gray-200">{statusTasks.length}</span>
                         </div>
-
                         {statusTasks.map(task => {
                           const checklists = task.checklists || [];
                           const totalItems = checklists.length;
                           const completedItems = checklists.filter(c => c.completed).length;
                           const progressPercent = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
                           const priorityInfo = PRIORITIES[task.priority] || PRIORITIES['MEDIUM'];
-
                           return (
                             <div key={task.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
                               <div className="flex justify-between items-start gap-2">
@@ -809,7 +914,6 @@ function MainApp({ user, onLogout }) {
                                 )}
                                 <button type="button" onClick={() => handleDeleteTask(task.id)} className="text-xs text-red-400 hover:text-red-600 shrink-0">✕</button>
                               </div>
-
                               <div className="flex flex-wrap gap-1.5 text-xs items-center justify-between">
                                 <div className="flex flex-wrap gap-1.5">
                                   {task.assignee && <span className="bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-md font-medium">👤 {task.assignee}</span>}
@@ -825,7 +929,6 @@ function MainApp({ user, onLogout }) {
                                   <option value="LOW">✅ Thấp</option>
                                 </select>
                               </div>
-
                               {totalItems > 0 && (
                                 <div className="space-y-1">
                                   <div className="flex justify-between text-xs text-gray-500">
@@ -837,7 +940,6 @@ function MainApp({ user, onLogout }) {
                                   </div>
                                 </div>
                               )}
-
                               <div className="space-y-1.5 pt-1">
                                 {checklists.map(item => (
                                   <div key={item.id} className="flex items-center justify-between text-xs group">
@@ -849,7 +951,6 @@ function MainApp({ user, onLogout }) {
                                   </div>
                                 ))}
                               </div>
-
                               <form onSubmit={(e) => handleAddChecklist(task.id, e)} className="space-y-1 pt-1">
                                 <div className="grid grid-cols-2 gap-1">
                                   <input 
@@ -871,7 +972,6 @@ function MainApp({ user, onLogout }) {
                                   <button type="submit" className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] px-3 py-1 rounded font-medium">{isJa ? '追加' : 'Thêm mục con'}</button>
                                 </div>
                               </form>
-
                               <div className="pt-2 border-t border-gray-100 space-y-2">
                                 <div className="flex items-center justify-between">
                                   <p className="text-[11px] font-bold text-gray-600">📎 {isJa ? '添付資料' : 'Tài liệu đính kèm'}</p>
@@ -880,7 +980,6 @@ function MainApp({ user, onLogout }) {
                                     <input type="file" onChange={(e) => handleFileUpload(task.id, e)} className="hidden" />
                                   </label>
                                 </div>
-
                                 {task.attachments && task.attachments.length > 0 ? (
                                   <div className="space-y-1">
                                     {task.attachments.map(att => (
@@ -895,7 +994,6 @@ function MainApp({ user, onLogout }) {
                                 ) : (
                                   <p className="text-[10px] text-gray-400 italic">{isJa ? '資料なし' : 'Chưa có file hay link nào'}</p>
                                 )}
-
                                 <div className="space-y-1 pt-1 border-t border-dashed border-gray-200">
                                   <input type="text" placeholder={isJa ? '資料名 (例: 契約書)' : 'Tên link (VD: Tài liệu thiết kế)'} value={attNameInputs[task.id] || ''} onChange={(e) => setAttNameInputs({ ...attNameInputs, [task.id]: e.target.value })} className="w-full text-[11px] border border-gray-200 rounded px-2 py-1 focus:outline-none" />
                                   <div className="flex gap-1">
@@ -904,7 +1002,6 @@ function MainApp({ user, onLogout }) {
                                   </div>
                                 </div>
                               </div>
-
                               <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
                                 <span className="text-[11px] text-gray-400">{isJa ? 'ステータス' : 'Trạng thái'}</span>
                                 <select value={task.status} onChange={(e) => handleStatusChange(task.id, e.target.value)} className="text-xs border border-gray-200 rounded px-2 py-1 bg-white text-gray-700 font-medium">
