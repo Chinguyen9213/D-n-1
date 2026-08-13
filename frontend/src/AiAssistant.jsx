@@ -26,7 +26,7 @@ export function AiAssistant({ isJa, tasks = [], allTasks = [], projects = [], pr
       .trim();
   };
 
-  // Thuật toán quét và tìm kiếm task nâng cao (Hỗ trợ Kanji & tìm toàn bộ dự án)
+  // Thuật toán quét và tìm kiếm task nâng cao
   const searchLocalTasks = (query) => {
     const rawQuery = (query || '').trim();
     if (!rawQuery) return [];
@@ -34,26 +34,21 @@ export function AiAssistant({ isJa, tasks = [], allTasks = [], projects = [], pr
     const normQuery = normalizeStr(rawQuery);
     const keywords = normQuery.split(/\s+/).filter(w => w.length > 0);
 
-    // Ưu tiên tìm trong danh sách `allTasks` (nếu có), nếu không dùng `tasks`
     const poolToSearch = (allTasks && allTasks.length > 0) ? allTasks : tasks;
 
     return poolToSearch.filter(t => {
-      // 1. Gom tất cả các trường tiêu đề
       const title = `${t.titleVi || ''} ${t.titleJa || ''} ${t.title || ''} ${t.name || ''}`;
       
-      // 2. Gom tất cả checklist text
       const checklists = t.checklists || t.items || [];
       const checklistsText = checklists
         .map(c => `${c.textVi || ''} ${c.textJa || ''} ${c.text || ''} ${c.title || ''}`)
         .join(' ');
 
-      // 3. Gom tất cả file / url đính kèm
       const attachments = t.attachments || t.files || [];
       const attachmentsText = attachments
         .map(a => `${a.name || ''} ${a.filename || ''} ${a.url || ''}`)
         .join(' ');
 
-      // 4. Gom thông tin người phụ trách, mô tả & trạng thái
       const assignee = t.assignee || t.user || '';
       const status = t.status || '';
       const description = t.description || t.desc || '';
@@ -61,12 +56,21 @@ export function AiAssistant({ isJa, tasks = [], allTasks = [], projects = [], pr
       const fullText = `${title} ${description} ${checklistsText} ${attachmentsText} ${assignee} ${status}`;
       const normFullText = normalizeStr(fullText);
 
-      // Ưu tiên 1: Khớp nguyên chuỗi tìm kiếm (đặc biệt quan trọng với Kanji/Kana tiếng Nhật)
+      // Ưu tiên 1: Khớp nguyên chuỗi (quan trọng đối với Kanji tiếng Nhật)
       if (normFullText.includes(normQuery)) return true;
 
-      // Ưu tiên 2: Khớp bất kỳ từ khóa nào trong truy vấn
+      // Ưu tiên 2: Khớp bất kỳ từ khóa nào
       return keywords.length > 0 && keywords.some(kw => normFullText.includes(kw));
     });
+  };
+
+  // Hàm định dạng trạng thái đa ngôn ngữ
+  const formatStatus = (statusStr, ja) => {
+    if (!statusStr) return ja ? '未着手' : 'Cần Làm';
+    const s = statusStr.toString().toLowerCase();
+    if (s.includes('xong') || s.includes('done') || s.includes('完了')) return ja ? '完了' : 'Đã Xong';
+    if (s.includes('đang') || s.includes('progress') || s.includes('進行')) return ja ? '進行中' : 'Đang Làm';
+    return statusStr;
   };
 
   const handleFileUploadToAi = (e) => {
@@ -81,7 +85,7 @@ export function AiAssistant({ isJa, tasks = [], allTasks = [], projects = [], pr
 
     const userText = inputContent.trim();
     const fileName = attachedFile ? attachedFile.name : '';
-    const displayMsg = userText + (fileName ? ` (📎 Đính kèm: ${fileName})` : '');
+    const displayMsg = userText + (fileName ? ` (📎 ${isJa ? '添付' : 'Đính kèm'}: ${fileName})` : '');
 
     setChatHistory(prev => [...prev, { sender: 'user', textVi: displayMsg, textJa: displayMsg, result: null }]);
     
@@ -134,7 +138,6 @@ export function AiAssistant({ isJa, tasks = [], allTasks = [], projects = [], pr
       } else {
         const primaryTask = matchedTasks[0];
         
-        // Xác định tên dự án của task tìm được
         const matchedProj = projects.find(p => p.id === primaryTask.projectId);
         const taskProjectName = matchedProj 
           ? (isJa ? (matchedProj.nameJa || matchedProj.nameVi) : (matchedProj.nameVi || matchedProj.nameJa)) 
@@ -144,19 +147,24 @@ export function AiAssistant({ isJa, tasks = [], allTasks = [], projects = [], pr
         const totalSteps = checklists.length;
         const completedSteps = checklists.filter(c => c.completed || c.done).length;
 
+        const taskTitleVi = primaryTask.titleVi || primaryTask.title || primaryTask.name || 'Công việc';
+        const taskTitleJa = primaryTask.titleJa || primaryTask.title || primaryTask.name || 'タスク';
+
         const aiResult = {
-          taskTitle: primaryTask.titleJa || primaryTask.titleVi || primaryTask.title || primaryTask.name || 'Công việc',
+          taskTitleVi: taskTitleVi,
+          taskTitleJa: taskTitleJa,
           projectName: taskProjectName,
           status: primaryTask.status || 'Cần Làm',
-          progressText: totalSteps > 0 ? `Đã hoàn thành ${completedSteps}/${totalSteps} bước` : "Chưa có danh sách checklist",
+          progressTextVi: totalSteps > 0 ? `Đã xong ${completedSteps}/${totalSteps} bước checklist` : "Chưa có danh sách checklist",
+          progressTextJa: totalSteps > 0 ? `チェックリスト ${totalSteps} 件中 ${completedSteps} 件完了` : "詳細チェックリストなし",
           checklists: checklists,
           attachments: primaryTask.attachments || primaryTask.files || []
         };
 
         setChatHistory(prev => [...prev, {
           sender: 'ai',
-          textVi: `Tìm thấy ${matchedTasks.length} kết quả liên quan đến "${userText}" trong dự án "${taskProjectName}":`,
-          textJa: `プロジェクト "${taskProjectName}" 内で "${userText}" に関連する結果が見つかりました:`,
+          textVi: `Dưới đây là thông tin chi tiết công việc tìm thấy trong dự án "${taskProjectName}":`,
+          textJa: `プロジェクト "${taskProjectName}" 内のタスク詳細情報です:`,
           result: aiResult
         }]);
       }
@@ -186,33 +194,35 @@ export function AiAssistant({ isJa, tasks = [], allTasks = [], projects = [], pr
 
               {chat.result && (
                 <div className="mt-2 pt-2 border-t border-purple-200 space-y-2 text-xs text-gray-800 bg-white/80 p-2.5 rounded-lg shadow-xs">
-                  <div className="font-bold text-purple-900 text-[13px]">📌 Công việc: "{chat.result.taskTitle}"</div>
+                  <div className="font-bold text-purple-900 text-[13px]">
+                    📌 {isJa ? 'タスク名:' : 'Công việc:'} "{isJa ? chat.result.taskTitleJa : chat.result.taskTitleVi}"
+                  </div>
 
                   {chat.result.projectName && (
                     <div className="text-[11px] text-gray-600">
-                      📁 Thuộc dự án: <span className="font-semibold text-purple-800">{chat.result.projectName}</span>
+                      📁 {isJa ? '所属プロジェクト:' : 'Thuộc dự án:'} <span className="font-semibold text-purple-800">{chat.result.projectName}</span>
                     </div>
                   )}
 
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-gray-500">Trạng thái:</span>
+                    <span className="font-semibold text-gray-500">{isJa ? 'ステータス:' : 'Trạng thái:'}</span>
                     <span className={`px-2 py-0.5 rounded font-bold text-[11px] ${
-                      chat.result.status === 'Đã Xong' ? 'bg-green-100 text-green-700 border border-green-200' :
-                      chat.result.status === 'Đang Làm' ? 'bg-blue-100 text-blue-700 border border-blue-200' : 
+                      chat.result.status === 'Đã Xong' || chat.result.status === '完了' ? 'bg-green-100 text-green-700 border border-green-200' :
+                      chat.result.status === 'Đang Làm' || chat.result.status === '進行中' ? 'bg-blue-100 text-blue-700 border border-blue-200' : 
                       'bg-yellow-100 text-yellow-800 border border-yellow-200'
                     }`}>
-                      {chat.result.status}
+                      {formatStatus(chat.result.status, isJa)}
                     </span>
                   </div>
 
                   <div>
-                    <span className="font-semibold text-gray-500">Tiến độ chi tiết: </span>
-                    <span className="font-medium text-gray-700">{chat.result.progressText}</span>
+                    <span className="font-semibold text-gray-500">{isJa ? '進捗詳細:' : 'Tiến độ chi tiết:'} </span>
+                    <span className="font-medium text-gray-700">{isJa ? chat.result.progressTextJa : chat.result.progressTextVi}</span>
                     {chat.result.checklists.length > 0 && (
                       <ul className="list-disc pl-4 mt-1 space-y-0.5 text-gray-600">
                         {chat.result.checklists.map((c, i) => (
                           <li key={i} className={c.completed || c.done ? "line-through text-gray-400" : ""}>
-                            {c.textVi || c.textJa || c.text || c.title} {c.completed || c.done ? "✓" : "..."}
+                            {isJa ? (c.textJa || c.textVi || c.text || c.title) : (c.textVi || c.textJa || c.text || c.title)} {c.completed || c.done ? "✓" : "..."}
                           </li>
                         ))}
                       </ul>
@@ -221,7 +231,7 @@ export function AiAssistant({ isJa, tasks = [], allTasks = [], projects = [], pr
 
                   {chat.result.attachments && chat.result.attachments.length > 0 && (
                     <div className="pt-2 border-t border-purple-100 space-y-1.5">
-                      <span className="font-semibold text-gray-500 block">File / Link đính kèm:</span>
+                      <span className="font-semibold text-gray-500 block">{isJa ? '添付ファイル / リンク:' : 'File / Link đính kèm:'}</span>
                       <div className="flex flex-wrap gap-1.5">
                         {chat.result.attachments.map((att, i) => (
                           <a
@@ -232,7 +242,7 @@ export function AiAssistant({ isJa, tasks = [], allTasks = [], projects = [], pr
                             download={att.type === 'file' ? att.name : undefined}
                             className="inline-flex items-center gap-1 bg-purple-50 border border-purple-300 text-purple-700 hover:bg-purple-100 font-semibold px-2.5 py-1 rounded-md transition"
                           >
-                            {att.type === 'file' ? '💾' : '🔗'} {att.name || att.filename || 'Tài liệu'}
+                            {att.type === 'file' ? '💾' : '🔗'} {att.name || att.filename || (isJa ? 'ドキュメント' : 'Tài liệu')}
                           </a>
                         ))}
                       </div>
@@ -247,7 +257,7 @@ export function AiAssistant({ isJa, tasks = [], allTasks = [], projects = [], pr
         {loading && (
           <div className="flex justify-start">
             <div className="bg-purple-100 text-purple-700 p-2 rounded-xl text-[11px] italic animate-pulse">
-              🤖 AI đang xử lý dữ liệu dự án...
+              🤖 {isJa ? 'AIがタスクデータを処理中...' : 'AI đang xử lý dữ liệu dự án...'}
             </div>
           </div>
         )}
@@ -255,20 +265,20 @@ export function AiAssistant({ isJa, tasks = [], allTasks = [], projects = [], pr
 
       {attachedFile && (
         <div className="flex items-center justify-between bg-white px-3 py-1.5 rounded-lg border border-purple-300 text-xs">
-          <span className="text-purple-700 font-semibold truncate">📎 Đã chọn file: {attachedFile.name}</span>
+          <span className="text-purple-700 font-semibold truncate">📎 {isJa ? '選択されたファイル:' : 'Đã chọn file:'} {attachedFile.name}</span>
           <button type="button" onClick={() => setAttachedFile(null)} className="text-red-500 font-bold ml-2">✕</button>
         </div>
       )}
 
       <div className="flex gap-2 items-center">
         <label className="cursor-pointer bg-white hover:bg-purple-50 border border-purple-300 text-purple-700 text-xs font-bold px-3 py-2 rounded-lg shadow-sm flex items-center gap-1 shrink-0">
-          📎 Gửi file
+          📎 {isJa ? 'ファイル添付' : 'Gửi file'}
           <input type="file" onChange={handleFileUploadToAi} className="hidden" />
         </label>
 
         <input
           type="text"
-          placeholder="Nhập nội dung trao đổi (VD: 物件, logo, quy trình...)"
+          placeholder={isJa ? "メッセージを入力 (例: 物件, ロゴ, 手順...)" : "Nhập nội dung trao đổi (VD: logo, quy trình...)"}
           value={inputContent}
           onChange={(e) => setInputContent(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') handleSendMessage(); }}
@@ -281,7 +291,7 @@ export function AiAssistant({ isJa, tasks = [], allTasks = [], projects = [], pr
           disabled={loading}
           className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-sm shrink-0 disabled:opacity-50"
         >
-          Gửi
+          {isJa ? '送信' : 'Gửi'}
         </button>
       </div>
     </div>
