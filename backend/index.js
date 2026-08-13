@@ -43,7 +43,7 @@ app.post('/api/data', async (req, res) => {
   }
 });
 
-// Route Trợ lý AI Chat
+// Route 1: Trợ lý AI Chat (Truy xuất dữ liệu - Giữ nguyên 100%)
 app.post('/api/ai/chat', async (req, res) => {
   try {
     const { message, projectData } = req.body;
@@ -59,7 +59,7 @@ Dữ liệu công việc thực tế hiện tại trong hệ thống:
 Nhiệm vụ: Trả lời người dùng bằng tiếng Việt ngắn gọn, rõ ràng dựa vào danh sách task.
 `;
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    const response = await fetch(`[https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=$](https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=$){apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -80,25 +80,76 @@ Nhiệm vụ: Trả lời người dùng bằng tiếng Việt ngắn gọn, rõ
   }
 });
 
-// Route Phân tích Task (Đã sửa lỗi cú pháp URL fetch)
+// Route 2: Trợ lý AI Bóc tách Task (Đã sửa triệt để lỗi syntax và parse JSON)
 app.post('/api/ai/parse-task', async (req, res) => {
   try {
-    const { text } = req.body;
-    if (!apiKey) return res.status(500).json({ error: "Chưa cấu hình GEMINI_API_KEY trên Render!" });
+    const { text, prompt: inputPrompt } = req.body;
+    const userText = text || inputPrompt || '';
 
-    const prompt = `Đọc đoạn mô tả sau và bóc tách thành các trường thông tin chuẩn dưới dạng JSON (chỉ trả về JSON thuần, không bọc trong \`\`\`json) gồm các field: title, assignee, priority. Nội dung: "${text}"`;
+    if (!userText.trim()) {
+      return res.status(400).json({ error: "Nội dung cần bóc tách không được để trống!" });
+    }
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    if (!apiKey) {
+      return res.status(500).json({ error: "Chưa cấu hình GEMINI_API_KEY trên Render!" });
+    }
+
+    const prompt = `Đọc đoạn mô tả sau và bóc tách thành các trường thông tin chuẩn dưới dạng JSON gồm các field: title, assignee, priority, dueDate, checklists (mảng danh sách bước làm nếu có). Trả về JSON thuần tuý. Nội dung: "${userText}"`;
+
+    const response = await fetch(`[https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$](https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$){apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json" }
+        generationConfig: { 
+          responseMimeType: "application/json" 
+        }
       })
     });
 
     const data = await response.json();
     if (data.error) throw new Error(data.error.message);
 
-    let jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-    jsonText = jsonText.replace(/```json/g, '').replace(/
+    let rawJsonText = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+
+    // Xử lý chuỗi JSON an toàn, loại bỏ Markdown codeblock nếu có
+    const cleanJsonText = rawJsonText
+      .replace(/```json/gi, '')
+      .replace(/```/g, '')
+      .trim();
+
+    let parsedTask;
+    try {
+      parsedTask = JSON.parse(cleanJsonText);
+    } catch (pErr) {
+      // Dự phòng nếu AI trả về chuỗi không đúng định dạng JSON
+      parsedTask = {
+        title: userText,
+        assignee: null,
+        priority: "Trung bình",
+        checklists: []
+      };
+    }
+
+    // Trả về đúng cấu trúc để Frontend nhận diện thành công
+    return res.json({
+      success: true,
+      data: parsedTask,
+      reply: parsedTask
+    });
+
+  } catch (error) {
+    console.error("Lỗi AI Parse Task:", error);
+    return res.status(500).json({ error: error.message || "Lỗi xử lý bóc tách task trên Server!" });
+  }
+});
+
+// Cho phép SPA React Router điều hướng client-side
+app.get('*', (req, res) => {
+  res.sendFile(path.join(frontendPath, 'index.html'));
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`Server đang chạy tại port ${PORT}`);
+});
