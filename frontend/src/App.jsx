@@ -8,18 +8,20 @@ const PRIORITIES = {
   LOW: { labelVi: '✅ Thấp', labelJa: '✅ 低', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' }
 };
 
-// Hàm chuẩn hóa chuỗi: Hỗ trợ cả tiếng Việt và tiếng Nhật (Hiragana, Katakana, Kanji)
+// Hàm chuẩn hóa chuỗi chuẩn xác hỗ trợ Tiếng Việt & Tiếng Nhật (Kanji, Hiragana, Katakana)
 function normalizeString(str) {
   if (!str) return '';
   if (typeof str !== 'string') str = String(str);
+
   return str
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '') // Bỏ dấu tổ hợp tiếng Việt
     .replace(/đ/g, 'd')
     .replace(/Đ/g, 'd')
-    // Giữ lại: a-z, 0-9, khoảng trắng, Hiragana (\u3040-\u309f), Katakana (\u30a0-\u30ff), Kanji (\u4e00-\u9faf)
-    .replace(/[^a-z0-9\s\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf]/g, ' ')
+    // \p{L} giữ lại toàn bộ chữ cái Unicode (Việt, Kanji, Hiragana, Katakana...), \p{N} giữ lại số
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
@@ -52,7 +54,7 @@ function TaskParserAi({ isJa, onTaskCreated }) {
     } catch (err) {
       console.error("Lỗi khi bóc tách task:", err);
       setErrorMessage(err.message || 'Lỗi kết nối server: 500');
-    } fontally {
+    } finally {
       setLoading(false);
     }
   };
@@ -133,10 +135,22 @@ function AiAssistant({ isJa, tasks, projectName }) {
       const currentTasks = tasks || [];
 
       const matchedTasks = currentTasks.filter(task => {
-        const fullTaskContent = normalizeString(JSON.stringify(task));
+        // So sánh trực tiếp trên các trường tiêu đề, checklist, người nhận để đảm bảo chính xác tuyệt đối
+        const titleVi = normalizeString(task.titleVi || task.title || '');
+        const titleJa = normalizeString(task.titleJa || '');
+        const assignee = normalizeString(task.assignee || '');
+        const checklistsText = normalizeString((task.checklists || []).map(c => `${c.textVi || ''} ${c.textJa || ''} ${c.text || ''}`).join(' '));
+        const attachmentsText = normalizeString((task.attachments || []).map(a => a.name || '').join(' '));
+
+        const fullTaskContent = `${titleVi} ${titleJa} ${assignee} ${checklistsText} ${attachmentsText}`;
+
         if (queryWords.length === 0) return false;
+        
+        // Khớp nguyên chuỗi tìm kiếm
         if (fullTaskContent.includes(normalizedQuery)) return true;
-        return queryWords.some(word => word.length > 1 && fullTaskContent.includes(word));
+
+        // Khớp bất kỳ từ nào trong từ khóa
+        return queryWords.some(word => word.length > 0 && fullTaskContent.includes(word));
       });
 
       if (matchedTasks.length === 0) {
@@ -628,8 +642,12 @@ function MainApp({ user, onLogout }) {
   const currentProjectTasks = tasks.filter(t => t.projectId === currentView);
 
   const filteredTasks = currentProjectTasks.filter(t => {
-    const fullText = normalizeString(JSON.stringify(t));
     const searchNormalized = normalizeString(searchTerm);
+    const titleVi = normalizeString(t.titleVi || t.title || '');
+    const titleJa = normalizeString(t.titleJa || '');
+    const assignee = normalizeString(t.assignee || '');
+    const fullText = `${titleVi} ${titleJa} ${assignee}`;
+    
     const matchSearch = !searchTerm || fullText.includes(searchNormalized);
     const matchAssignee = filterAssignee === 'all' || t.assignee === filterAssignee;
     const matchPriority = filterPriority === 'all' || t.priority === filterPriority;
