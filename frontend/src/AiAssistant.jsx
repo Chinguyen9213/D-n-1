@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export function AiAssistant({ isJa, tasks = [], projectName }) {
+export function AiAssistant({ isJa, tasks = [], allTasks = [], projects = [], projectName }) {
   const [inputContent, setInputContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [attachedFile, setAttachedFile] = useState(null);
@@ -8,13 +8,13 @@ export function AiAssistant({ isJa, tasks = [], projectName }) {
   const [chatHistory, setChatHistory] = useState([
     {
       sender: 'ai',
-      textVi: 'Xin chào! Tôi là Trợ lý AI. Bạn có thể hỏi về tiến độ công việc hoặc tra cứu thông tin trong dự án (VD: "logo", "quy trình", "SOP"...).',
+      textVi: 'Xin chào! Tôi là Trợ lý AI. Bạn có thể hỏi về tiến độ công việc hoặc tra cứu thông tin (VD: "物件", "logo", "quy trình"...).',
       textJa: 'こんにちは！AIアシスタントです。タスクの進捗や情報についてお気軽にご質問ください。',
       result: null
     }
   ]);
 
-  // Hàm loại bỏ dấu Tiếng Việt để so sánh chính xác hơn
+  // Hàm loại bỏ dấu Tiếng Việt & chuẩn hóa chuỗi
   const normalizeStr = (str) => {
     if (!str) return '';
     return str
@@ -26,7 +26,7 @@ export function AiAssistant({ isJa, tasks = [], projectName }) {
       .trim();
   };
 
-  // Thuật toán quét và tìm kiếm task đa năng
+  // Thuật toán quét và tìm kiếm task nâng cao (Hỗ trợ Kanji & tìm toàn bộ dự án)
   const searchLocalTasks = (query) => {
     const rawQuery = (query || '').trim();
     if (!rawQuery) return [];
@@ -34,9 +34,12 @@ export function AiAssistant({ isJa, tasks = [], projectName }) {
     const normQuery = normalizeStr(rawQuery);
     const keywords = normQuery.split(/\s+/).filter(w => w.length > 0);
 
-    return (tasks || []).filter(t => {
-      // 1. Gom tất cả các biến số tiêu đề có thể có
-      const title = t.titleVi || t.titleJa || t.title || t.name || '';
+    // Ưu tiên tìm trong danh sách `allTasks` (nếu có), nếu không dùng `tasks`
+    const poolToSearch = (allTasks && allTasks.length > 0) ? allTasks : tasks;
+
+    return poolToSearch.filter(t => {
+      // 1. Gom tất cả các trường tiêu đề
+      const title = `${t.titleVi || ''} ${t.titleJa || ''} ${t.title || ''} ${t.name || ''}`;
       
       // 2. Gom tất cả checklist text
       const checklists = t.checklists || t.items || [];
@@ -50,15 +53,19 @@ export function AiAssistant({ isJa, tasks = [], projectName }) {
         .map(a => `${a.name || ''} ${a.filename || ''} ${a.url || ''}`)
         .join(' ');
 
-      // 4. Gom thông tin người phụ trách & trạng thái
+      // 4. Gom thông tin người phụ trách, mô tả & trạng thái
       const assignee = t.assignee || t.user || '';
       const status = t.status || '';
+      const description = t.description || t.desc || '';
 
-      const fullText = `${title} ${checklistsText} ${attachmentsText} ${assignee} ${status}`;
+      const fullText = `${title} ${description} ${checklistsText} ${attachmentsText} ${assignee} ${status}`;
       const normFullText = normalizeStr(fullText);
 
-      // Kiểm tra chỉ cần chứa chuỗi gốc HOẶC chứa bất kỳ từ khóa nào
-      return normFullText.includes(normQuery) || keywords.some(kw => normFullText.includes(kw));
+      // Ưu tiên 1: Khớp nguyên chuỗi tìm kiếm (đặc biệt quan trọng với Kanji/Kana tiếng Nhật)
+      if (normFullText.includes(normQuery)) return true;
+
+      // Ưu tiên 2: Khớp bất kỳ từ khóa nào trong truy vấn
+      return keywords.length > 0 && keywords.some(kw => normFullText.includes(kw));
     });
   };
 
@@ -126,12 +133,20 @@ export function AiAssistant({ isJa, tasks = [], projectName }) {
         }]);
       } else {
         const primaryTask = matchedTasks[0];
+        
+        // Xác định tên dự án của task tìm được
+        const matchedProj = projects.find(p => p.id === primaryTask.projectId);
+        const taskProjectName = matchedProj 
+          ? (isJa ? (matchedProj.nameJa || matchedProj.nameVi) : (matchedProj.nameVi || matchedProj.nameJa)) 
+          : (projectName || "Oishii BBQ");
+
         const checklists = primaryTask.checklists || primaryTask.items || [];
         const totalSteps = checklists.length;
         const completedSteps = checklists.filter(c => c.completed || c.done).length;
 
         const aiResult = {
-          taskTitle: primaryTask.titleVi || primaryTask.titleJa || primaryTask.title || primaryTask.name || 'Công việc',
+          taskTitle: primaryTask.titleJa || primaryTask.titleVi || primaryTask.title || primaryTask.name || 'Công việc',
+          projectName: taskProjectName,
           status: primaryTask.status || 'Cần Làm',
           progressText: totalSteps > 0 ? `Đã hoàn thành ${completedSteps}/${totalSteps} bước` : "Chưa có danh sách checklist",
           checklists: checklists,
@@ -140,8 +155,8 @@ export function AiAssistant({ isJa, tasks = [], projectName }) {
 
         setChatHistory(prev => [...prev, {
           sender: 'ai',
-          textVi: `Tìm thấy ${matchedTasks.length} kết quả liên quan đến "${userText}" trong dự án "${projectName || "Oishii BBQ"}":`,
-          textJa: `プロジェクト "${projectName || "Oishii BBQ"}" 内で "${userText}" に関連する結果が見つかりました:`,
+          textVi: `Tìm thấy ${matchedTasks.length} kết quả liên quan đến "${userText}" trong dự án "${taskProjectName}":`,
+          textJa: `プロジェクト "${taskProjectName}" 内で "${userText}" に関連する結果が見つかりました:`,
           result: aiResult
         }]);
       }
@@ -172,6 +187,12 @@ export function AiAssistant({ isJa, tasks = [], projectName }) {
               {chat.result && (
                 <div className="mt-2 pt-2 border-t border-purple-200 space-y-2 text-xs text-gray-800 bg-white/80 p-2.5 rounded-lg shadow-xs">
                   <div className="font-bold text-purple-900 text-[13px]">📌 Công việc: "{chat.result.taskTitle}"</div>
+
+                  {chat.result.projectName && (
+                    <div className="text-[11px] text-gray-600">
+                      📁 Thuộc dự án: <span className="font-semibold text-purple-800">{chat.result.projectName}</span>
+                    </div>
+                  )}
 
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-gray-500">Trạng thái:</span>
@@ -247,7 +268,7 @@ export function AiAssistant({ isJa, tasks = [], projectName }) {
 
         <input
           type="text"
-          placeholder="Nhập nội dung trao đổi (VD: logo, quy trình...)"
+          placeholder="Nhập nội dung trao đổi (VD: 物件, logo, quy trình...)"
           value={inputContent}
           onChange={(e) => setInputContent(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') handleSendMessage(); }}
