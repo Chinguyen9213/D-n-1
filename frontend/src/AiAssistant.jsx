@@ -20,7 +20,36 @@ export function AiAssistant({ isJa, tasks, projectName }) {
     setAttachedFile(file);
   };
 
-  const handleSendMessage = () => {
+  // Hàm quét cục bộ nâng cấp (Quét Task + Checklist + Attachments)
+  const searchLocalTasks = (query) => {
+    const currentTasks = tasks || [];
+    const keywords = query.toLowerCase().split(/\s+/).filter(word => word.length > 0);
+
+    return currentTasks.filter(t => {
+      const titleVi = (t.titleVi || t.title || '').toLowerCase();
+      const titleJa = (t.titleJa || '').toLowerCase();
+      const assignee = (t.assignee || '').toLowerCase();
+
+      // Gom toàn bộ checklist text
+      const checklistsText = (t.checklists || [])
+        .map(c => `${c.textVi || ''} ${c.textJa || ''} ${c.text || ''}`)
+        .join(' ')
+        .toLowerCase();
+
+      // Gom toàn bộ attachment names
+      const attachmentsText = (t.attachments || [])
+        .map(a => a.name || '')
+        .join(' ')
+        .toLowerCase();
+
+      const fullTaskText = `${titleVi} ${titleJa} ${assignee} ${checklistsText} ${attachmentsText}`;
+
+      // Kiểm tra xem có từ khóa nào xuất hiện trong toàn bộ dữ liệu task hay không
+      return keywords.some(kw => fullTaskText.includes(kw));
+    });
+  };
+
+  const handleSendMessage = async () => {
     if (!inputContent.trim() && !attachedFile) return;
     if (loading) return;
 
@@ -34,29 +63,50 @@ export function AiAssistant({ isJa, tasks, projectName }) {
     if (attachedFile) setAttachedFile(null);
     setLoading(true);
 
-    setTimeout(() => {
-      const query = userText.toLowerCase();
-      const currentTasks = tasks || [];
-
-      // Phân tích tìm kiếm task phù hợp từ danh sách props
-      const matchedTask = currentTasks.find(t => {
-        const titleVi = (t.titleVi || t.title || '').toLowerCase();
-        const titleJa = (t.titleJa || '').toLowerCase();
-        const keywords = query.split(/\s+/).filter(word => word.length > 1);
-        return keywords.some(kw => titleVi.includes(kw) || titleJa.includes(kw));
+    try {
+      // 1. Thử gửi yêu cầu tới Backend Gemini API
+      const res = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userText,
+          projectData: {
+            projectName: projectName || 'Oishii BBQ',
+            taskList: tasks || []
+          }
+        })
       });
 
-      if (!matchedTask) {
-        setChatHistory(prev => [...prev, {
-          sender: 'ai',
-          textVi: `Không tìm thấy công việc nào khớp với từ khóa: "${userText}". Bạn có thể thử lại với tên công việc cụ thể hơn.`,
-          textJa: `キーワードに一致するタスクが見つかりませんでした: "${userText}"。`,
-          result: null
-        }]);
-        setLoading(false);
-        return;
+      if (res.ok) {
+        const data = await res.json();
+        if (data.reply) {
+          setChatHistory(prev => [...prev, {
+            sender: 'ai',
+            textVi: data.reply,
+            textJa: data.reply,
+            result: null
+          }]);
+          setLoading(false);
+          return;
+        }
       }
+    } catch (err) {
+      console.warn("Chưa nối backend API hoặc lỗi kết nối, chuyển sang Local Search Agent:", err);
+    }
 
+    // 2. Nếu Backend chưa chạy hoặc lỗi API -> Sử dụng Local Search Agent thông minh
+    const matchedTasks = searchLocalTasks(userText);
+
+    if (matchedTasks.length === 0) {
+      setChatHistory(prev => [...prev, {
+        sender: 'ai',
+        textVi: `Không tìm thấy công việc, checklist hay tài liệu nào khớp với từ khóa: "${userText}".`,
+        textJa: `キーワードに一致する情報が見つかりませんでした: "${userText}"。`,
+        result: null
+      }]);
+    } else {
+      // Hiển thị task phù hợp nhất
+      const matchedTask = matchedTasks[0];
       const checklists = matchedTask.checklists || [];
       const totalSteps = checklists.length;
       const completedSteps = checklists.filter(c => c.completed).length;
@@ -64,26 +114,27 @@ export function AiAssistant({ isJa, tasks, projectName }) {
       const aiResult = {
         taskTitle: matchedTask.titleVi || matchedTask.titleJa || matchedTask.title,
         status: matchedTask.status || 'Cần Làm',
-        progressText: totalSteps > 0 ? `Đã xong ${completedSteps}/${totalSteps} bước checklist` : "Chưa có bước checklist chi tiết",
+        progressText: totalSteps > 0 ? `Đã xong ${completedSteps}/${totalSteps} bước checklist` : "Chưa có checklist chi tiết",
         checklists: checklists,
         attachments: matchedTask.attachments || []
       };
 
       setChatHistory(prev => [...prev, {
         sender: 'ai',
-        textVi: `Dưới đây là thông tin chi tiết cho công việc bạn yêu cầu trong dự án "${projectName || "Oishii BBQ"}":`,
-        textJa: `プロジェクト "${projectName || "Oishii BBQ"}" 内のタスク詳細情報です:`,
+        textVi: `Tìm thấy ${matchedTasks.length} kết quả phù hợp với từ khóa "${userText}" trong dự án "${projectName || "Oishii BBQ"}":`,
+        textJa: `プロジェクト "${projectName || "Oishii BBQ"}" で "${userText}" に liên quan する結果が見つかりました:`,
         result: aiResult
       }]);
-      setLoading(false);
-    }, 300);
+    }
+
+    setLoading(false);
   };
 
   return (
     <div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-4 rounded-xl border border-purple-200 shadow-sm space-y-3">
       <div className="flex justify-between items-center">
         <h3 className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
-          💬 {isJa ? 'AIアシスタントチャット (Local Agent)' : 'Trợ Lý AI Trò Chuyện & Hỗ Trợ (Local Agent)'}
+          💬 {isJa ? 'AIアシスタントチャット (Gemini & Local Agent)' : 'Trợ Lý AI Trò Chuyện & Hỗ Trợ (Gemini & Local Agent)'}
         </h3>
         <span className="text-[10px] bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full font-semibold">Active</span>
       </div>
@@ -96,7 +147,7 @@ export function AiAssistant({ isJa, tasks, projectName }) {
                 ? 'bg-purple-600 text-white rounded-br-none shadow-sm' 
                 : 'bg-purple-100/90 text-purple-900 rounded-bl-none border border-purple-200 space-y-2'
             }`}>
-              <p>{isJa ? (chat.textJa || chat.textVi) : (chat.textVi || chat.textJa)}</p>
+              <p className="whitespace-pre-wrap">{isJa ? (chat.textJa || chat.textVi) : (chat.textVi || chat.textJa)}</p>
 
               {chat.result && (
                 <div className="mt-2 pt-2 border-t border-purple-200 space-y-2 text-xs text-gray-800 bg-white/60 p-2 rounded-lg">
@@ -119,7 +170,7 @@ export function AiAssistant({ isJa, tasks, projectName }) {
                       <ul className="list-disc pl-4 mt-1 space-y-1 text-gray-600">
                         {chat.result.checklists.map((c, i) => (
                           <li key={i} className={c.completed ? "line-through text-gray-400" : ""}>
-                            {c.textVi || c.text} {c.completed ? "✓" : "..."}
+                            {c.textVi || c.textJa || c.text} {c.completed ? "✓" : "..."}
                           </li>
                         ))}
                       </ul>
@@ -128,7 +179,7 @@ export function AiAssistant({ isJa, tasks, projectName }) {
 
                   {chat.result.attachments && chat.result.attachments.length > 0 && (
                     <div className="pt-2 border-t border-purple-100 space-y-1.5">
-                      <span className="font-semibold text-gray-500 block">File/Kết quả đính kèm:</span>
+                      <span className="font-semibold text-gray-500 block">File / Tài liệu đính kèm:</span>
                       <div className="flex flex-wrap gap-1.5">
                         {chat.result.attachments.map((att, i) => (
                           <a
@@ -150,10 +201,11 @@ export function AiAssistant({ isJa, tasks, projectName }) {
             </div>
           </div>
         ))}
+
         {loading && (
           <div className="flex justify-start">
             <div className="bg-purple-100 text-purple-700 p-2 rounded-xl text-[11px] italic animate-pulse">
-              🤖 AI đang quét trạng thái và checklist công việc...
+              🤖 AI đang xử lý dữ liệu dự án...
             </div>
           </div>
         )}
