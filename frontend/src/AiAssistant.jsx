@@ -1,5 +1,17 @@
 import React, { useState } from 'react';
 
+// Hàm hỗ trợ chuẩn hóa chuỗi: xóa dấu tiếng Việt, chuyển chữ thường để so sánh chính xác
+const normalizeText = (text) => {
+  if (!text) return '';
+  return text
+    .toString()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .trim();
+};
+
 export default function AiAssistant({ tasks, projectName }) {
   const [messages, setMessages] = useState([
     { 
@@ -13,23 +25,41 @@ export default function AiAssistant({ tasks, projectName }) {
 
   const handleSend = () => {
     if (!input.trim() || loading) return;
-
     const userMsg = input.trim();
     setInput('');
-    // Thêm tin nhắn câu hỏi của người dùng vào khung chat
     setMessages(prev => [...prev, { sender: 'user', text: userMsg, result: null }]);
     setLoading(true);
 
     setTimeout(() => {
-      const query = userMsg.toLowerCase();
+      const normalizedQuery = normalizeText(userMsg);
       const currentTasks = tasks || [];
 
-      // --- AGENT 1: Phân tích ý định & bóc tách từ khóa mục tiêu (Entity) ---
+      // --- LOGIC TÌM KIẾM CẢ TASK LỚN LẪN MỤC CON (SUBTASKS / CHECKLISTS) ---
       const matchedTask = currentTasks.find(t => {
-        const titleVi = (t.titleVi || t.title || '').toLowerCase();
-        const titleJa = (t.titleJa || '').toLowerCase();
-        const keywords = query.split(/\s+/).filter(word => word.length > 1);
-        return keywords.some(kw => titleVi.includes(kw) || titleJa.includes(kw));
+        const titleVi = normalizeText(t.titleVi || t.title || '');
+        const titleJa = normalizeText(t.titleJa || '');
+        const assignee = normalizeText(t.assignee || '');
+
+        // 1. Kiểm tra khớp ở Tiêu đề Task lớn hoặc Người phụ trách
+        const matchTitleOrAssignee = titleVi.includes(normalizedQuery) || 
+                                     titleJa.includes(normalizedQuery) || 
+                                     assignee.includes(normalizedQuery);
+
+        // 2. Kiểm tra khớp ở bất kỳ Mục con (Checklist / Subtask) nào
+        const subitems = t.checklists || t.subtasks || [];
+        const matchSubitem = subitems.some(item => {
+          const itemTextVi = normalizeText(item.textVi || item.text || item.name || item.title || '');
+          const itemTextJa = normalizeText(item.textJa || item.titleJa || '');
+          return itemTextVi.includes(normalizedQuery) || itemTextJa.includes(normalizedQuery);
+        });
+
+        // 3. Kiểm tra khớp ở tên File/Link đính kèm
+        const attachments = t.attachments || [];
+        const matchAttachment = attachments.some(att => 
+          normalizeText(att.name || att.title || '').includes(normalizedQuery)
+        );
+
+        return matchTitleOrAssignee || matchSubitem || matchAttachment;
       });
 
       if (!matchedTask) {
@@ -42,7 +72,7 @@ export default function AiAssistant({ tasks, projectName }) {
         return;
       }
 
-      // --- AGENT 2: Truy xuất thông tin từ state tasks & checklist ---
+      // --- TRUY XUẤT THÔNG TIN TASK ĐÃ TÌM THẤY ---
       const checklists = matchedTask.checklists || matchedTask.subtasks || [];
       const totalSteps = checklists.length;
       const completedSteps = checklists.filter(c => c.completed || c.status === 'Done').length;
@@ -55,7 +85,6 @@ export default function AiAssistant({ tasks, projectName }) {
         attachments: matchedTask.attachments || []
       };
 
-      // Đưa kết quả cấu trúc trực quan vào tin nhắn của bot
       setMessages(prev => [...prev, {
         sender: 'bot',
         text: `Dưới đây là thông tin chi tiết cho công việc bạn yêu cầu trong dự án "${projectName || "Oishii BBQ"}":`,
@@ -67,7 +96,6 @@ export default function AiAssistant({ tasks, projectName }) {
 
   return (
     <div className="bg-purple-50/60 border border-purple-200 rounded-2xl p-4 flex flex-col h-[480px] shadow-sm">
-      {/* Tiêu đề khung chat */}
       <div className="flex justify-between items-center pb-3 border-b border-purple-200 mb-3">
         <span className="font-bold text-purple-900 text-sm flex items-center gap-1.5">
           💬 Trợ Lý AI Trò Chuyện & Hỗ Trợ (Local Agent)
@@ -75,7 +103,6 @@ export default function AiAssistant({ tasks, projectName }) {
         <span className="text-[11px] bg-purple-200 text-purple-800 font-bold px-2 py-0.5 rounded-full">Active</span>
       </div>
 
-      {/* Khu vực hiển thị tin nhắn */}
       <div className="flex-1 overflow-y-auto space-y-3 pr-2">
         {messages.map((msg, index) => (
           <div key={index} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
@@ -86,12 +113,10 @@ export default function AiAssistant({ tasks, projectName }) {
             }`}>
               <p>{msg.text}</p>
               
-              {/* Định dạng phản hồi trực quan từ Agent 2 */}
               {msg.result && (
                 <div className="mt-2.5 pt-2.5 border-t border-purple-100 space-y-2 text-xs">
                   <div className="font-bold text-purple-900 text-[13px]">📌 Công việc: "{msg.result.taskTitle}"</div>
                   
-                  {/* Trạng thái */}
                   <div>
                     <span className="font-semibold text-gray-500">Trạng thái: </span>
                     <span className={`px-2 py-0.5 rounded font-bold ${
@@ -102,7 +127,6 @@ export default function AiAssistant({ tasks, projectName }) {
                     </span>
                   </div>
 
-                  {/* Tiến độ chi tiết checklist */}
                   <div>
                     <span className="font-semibold text-gray-500">Tiến độ chi tiết: </span>
                     <span className="font-medium text-gray-700">{msg.result.progressText}</span>
@@ -117,7 +141,6 @@ export default function AiAssistant({ tasks, projectName }) {
                     )}
                   </div>
 
-                  {/* File / Kết quả đính kèm dạng nút bấm tải hoặc xem trực tiếp */}
                   {msg.result.attachments && msg.result.attachments.length > 0 && (
                     <div className="pt-2 border-t border-purple-100 space-y-1.5">
                       <span className="font-semibold text-gray-500 block">File/Kết quả đính kèm:</span>
@@ -142,6 +165,7 @@ export default function AiAssistant({ tasks, projectName }) {
             </div>
           </div>
         ))}
+
         {loading && (
           <div className="flex items-start">
             <div className="bg-white border border-purple-200 text-gray-500 rounded-2xl rounded-bl-none px-4 py-2 text-xs shadow-sm">
@@ -151,7 +175,6 @@ export default function AiAssistant({ tasks, projectName }) {
         )}
       </div>
 
-      {/* Khung nhập nội dung chat */}
       <div className="pt-3 border-t border-purple-200 flex gap-2 mt-2">
         <input 
           type="text" 
