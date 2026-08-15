@@ -15,12 +15,11 @@ export function AiAssistant({ isJa, lang, tasks = [], allTasks = [], projects = 
     }
   ]);
 
-  // Bộ bóc tách thông minh chạy nội bộ, an toàn tuyệt đối, không lỗi mạng/URL
   const parseSmartTaskBreakdown = (text) => {
     if (!text) return [];
     const lower = text.toLowerCase();
 
-    if (lower.includes('mat bang') || lower.includes('tim mat bang') || lower.includes('xem mat bang')) {
+    if (lower.includes('mat bang') || lower.includes('tim mat bang') || lower.includes('xem mat bang') || lower.includes('chi di xem')) {
       return [
         {
           titleVi: 'Khảo sát và tìm kiếm các địa điểm mặt bằng tiềm năng',
