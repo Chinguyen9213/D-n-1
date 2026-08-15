@@ -153,10 +153,10 @@ export function AiAssistant({ isJa, lang, tasks = [], allTasks = [], projects = 
     } catch (err) {
       console.log("Backend API offline, attempting Gemini API or Local fallback");
     }
-    // 2. Nếu Backend không phản hồi mà có truyền apiKey, gọi trực tiếp Gemini API (Sửa hoàn toàn bằng chuỗi cộng an toàn chống lỗi template string)
+    // 2. Nếu Backend không phản hồi mà có truyền apiKey, gọi trực tiếp Gemini API (Sửa lỗi parse URL bằng cách dùng biến chuỗi thuần an toàn)
     if (!apiSuccess && apiKey) {
       try {
-        const cleanApiKey = (apiKey || '').trim();
+        const cleanApiKey = typeof apiKey === 'string' ? apiKey.trim() : '';
         const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + cleanApiKey;
         const promptText = isExtractionIntent 
           ? 'Bạn là trợ lý AI chuyên bóc tách dữ liệu công việc. Hãy đọc đoạn văn bản sau và trả về DUY NHẤT một chuỗi JSON hợp lệ (không kèm markdown ```json) theo cấu trúc chính xác:\n' +
@@ -403,7 +403,7 @@ export function AiAssistant({ isJa, lang, tasks = [], allTasks = [], projects = 
         {loading && (
           <div className="flex justify-start">
             <div className="bg-purple-100 text-purple-700 p-2 rounded-xl text-[11px] italic animate-pulse">
-              🤖 {isJapanese ? 'AIがタスクデータを処理中...' : 'AI sedang xử lý dữ liệu và bóc tách task...'}
+              🤖 {isJapanese ? 'AIがタスクデータを処理中...' : 'AI đang xử lý dữ liệu và bóc tách task...'}
             </div>
           </div>
         )}
@@ -425,7 +425,7 @@ export function AiAssistant({ isJa, lang, tasks = [], allTasks = [], projects = 
           value={inputContent}
           onChange={(e) => setInputContent(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') handleSendMessage(); }}
-          className="flex-1 text-xs border border-purple-200 rounded-lg px-2 py-2 focus:outline-none focus:border-purple-500 bg-white"
+          className="flex-1 text-xs border border-purple-200 rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 bg-white"
         />
         <button
           type="button"
