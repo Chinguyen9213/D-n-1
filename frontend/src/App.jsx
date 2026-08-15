@@ -12,7 +12,6 @@ const PRIORITIES = {
 function normalizeString(str) {
   if (!str) return '';
   if (typeof str !== 'string') str = String(str);
-
   return str
     .toLowerCase()
     .normalize('NFD')
@@ -45,7 +44,6 @@ function TaskParserAi({ isJa, onTaskCreated }) {
       if (!res.ok) {
         throw new Error(result.error || `Lỗi server: ${res.status}`);
       }
-
       const parsedData = result.data || result.reply;
       if (parsedData && onTaskCreated) {
         onTaskCreated(parsedData);
@@ -64,7 +62,6 @@ function TaskParserAi({ isJa, onTaskCreated }) {
       <h3 className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
         🤖 {isJa ? 'AI タスク自動 bóc tách (Task Parser)' : 'Trợ lý AI Bóc tách Công việc'}
       </h3>
-
       <div className="flex gap-2">
         <input
           type="text"
@@ -83,7 +80,6 @@ function TaskParserAi({ isJa, onTaskCreated }) {
           {loading ? (isJa ? '処理中...' : 'Đang bóc tách...') : (isJa ? '送信' : 'Gửi cho Bot')}
         </button>
       </div>
-
       {errorMessage && (
         <div className="p-2.5 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg flex items-center gap-1.5">
           <span>❌</span>
@@ -99,7 +95,6 @@ function AiAssistant({ isJa, tasks, projectName }) {
   const [inputContent, setInputContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [attachedFile, setAttachedFile] = useState(null);
-
   const [chatHistory, setChatHistory] = useState([
     {
       sender: 'ai',
@@ -118,13 +113,10 @@ function AiAssistant({ isJa, tasks, projectName }) {
   const handleSendMessage = () => {
     if (!inputContent.trim() && !attachedFile) return;
     if (loading) return;
-
     const userText = inputContent.trim();
     const fileName = attachedFile ? attachedFile.name : '';
     const displayMsg = userText + (fileName ? ` (📎 Đính kèm: ${fileName})` : '');
-
     setChatHistory(prev => [...prev, { sender: 'user', textVi: displayMsg, textJa: displayMsg, result: null }]);
-
     setInputContent('');
     if (attachedFile) setAttachedFile(null);
     setLoading(true);
@@ -133,23 +125,16 @@ function AiAssistant({ isJa, tasks, projectName }) {
       const normalizedQuery = normalizeString(userText);
       const queryWords = normalizedQuery.split(/\s+/).filter(w => w.length > 0);
       const currentTasks = tasks || [];
-
       const matchedTasks = currentTasks.filter(task => {
-        // So sánh trực tiếp trên các trường tiêu đề, checklist, người nhận để đảm bảo chính xác tuyệt đối
         const titleVi = normalizeString(task.titleVi || task.title || '');
         const titleJa = normalizeString(task.titleJa || '');
         const assignee = normalizeString(task.assignee || '');
         const checklistsText = normalizeString((task.checklists || []).map(c => `${c.textVi || ''} ${c.textJa || ''} ${c.text || ''}`).join(' '));
         const attachmentsText = normalizeString((task.attachments || []).map(a => a.name || '').join(' '));
-
         const fullTaskContent = `${titleVi} ${titleJa} ${assignee} ${checklistsText} ${attachmentsText}`;
-
         if (queryWords.length === 0) return false;
         
-        // Khớp nguyên chuỗi tìm kiếm
         if (fullTaskContent.includes(normalizedQuery)) return true;
-
-        // Khớp bất kỳ từ nào trong từ khóa
         return queryWords.some(word => word.length > 0 && fullTaskContent.includes(word));
       });
 
@@ -157,7 +142,6 @@ function AiAssistant({ isJa, tasks, projectName }) {
         const allTaskTitles = currentTasks
           .map(t => `• ${t.titleVi || t.titleJa || t.title || 'Công việc không tên'}`)
           .join('\n');
-
         setChatHistory(prev => [...prev, {
           sender: 'ai',
           textVi: `Không tìm thấy công việc nào khớp với từ khóa: "${userText}".\n\n📌 Danh sách các task hiện có trong dự án "${projectName || 'hiện tại'}":\n${allTaskTitles || '(Chưa có công việc nào)'}`,
@@ -172,7 +156,6 @@ function AiAssistant({ isJa, tasks, projectName }) {
       const checklists = matchedTask.checklists || [];
       const totalSteps = checklists.length;
       const completedSteps = checklists.filter(c => c.completed).length;
-
       const aiResult = {
         taskTitle: matchedTask.titleVi || matchedTask.titleJa || matchedTask.title || 'Công việc',
         status: matchedTask.status || 'Cần Làm',
@@ -182,7 +165,6 @@ function AiAssistant({ isJa, tasks, projectName }) {
       };
 
       const foundCountText = matchedTasks.length > 1 ? ` (Tìm thấy ${matchedTasks.length} task phù hợp, hiển thị task khớp nhất)` : '';
-
       setChatHistory(prev => [...prev, {
         sender: 'ai',
         textVi: `Dưới đây là thông tin chi tiết công việc tìm thấy trong dự án "${projectName || "Oishii BBQ"}"${foundCountText}:`,
@@ -201,7 +183,6 @@ function AiAssistant({ isJa, tasks, projectName }) {
         </h3>
         <span className="text-[10px] bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full font-semibold">Active</span>
       </div>
-
       <div className="bg-white/90 rounded-lg p-3 max-h-60 overflow-y-auto space-y-3 border border-purple-100 text-xs">
         {chatHistory.map((chat, idx) => (
           <div key={idx} className={`flex flex-col ${chat.sender === 'user' ? 'items-end' : 'items-start'}`}>
@@ -211,11 +192,9 @@ function AiAssistant({ isJa, tasks, projectName }) {
                 : 'bg-purple-100/90 text-purple-900 rounded-bl-none border border-purple-200 space-y-2'
             }`}>
               <p>{isJa ? (chat.textJa || chat.textVi) : (chat.textVi || chat.textJa)}</p>
-
               {chat.result && (
                 <div className="mt-2 pt-2 border-t border-purple-200 space-y-2 text-xs text-gray-800 bg-white/60 p-2 rounded-lg">
                   <div className="font-bold text-purple-900 text-[13px]">📌 Công việc: "{chat.result.taskTitle}"</div>
-                  
                   <div>
                     <span className="font-semibold text-gray-500">Trạng thái: </span>
                     <span className={`px-2 py-0.5 rounded font-bold ${
@@ -225,7 +204,6 @@ function AiAssistant({ isJa, tasks, projectName }) {
                       {chat.result.status}
                     </span>
                   </div>
-
                   <div>
                     <span className="font-semibold text-gray-500">Tiến độ chi tiết: </span>
                     <span className="font-medium text-gray-700">{chat.result.progressText}</span>
@@ -239,7 +217,6 @@ function AiAssistant({ isJa, tasks, projectName }) {
                       </ul>
                     )}
                   </div>
-
                   {chat.result.attachments && chat.result.attachments.length > 0 && (
                     <div className="pt-2 border-t border-purple-100 space-y-1.5">
                       <span className="font-semibold text-gray-500 block">File/Kết quả đính kèm:</span>
@@ -264,7 +241,6 @@ function AiAssistant({ isJa, tasks, projectName }) {
             </div>
           </div>
         ))}
-
         {loading && (
           <div className="flex justify-start">
             <div className="bg-purple-100 text-purple-700 p-2 rounded-xl text-[11px] italic animate-pulse">
@@ -273,20 +249,17 @@ function AiAssistant({ isJa, tasks, projectName }) {
           </div>
         )}
       </div>
-
       {attachedFile && (
         <div className="flex items-center justify-between bg-white px-3 py-1.5 rounded-lg border border-purple-300 text-xs">
           <span className="text-purple-700 font-semibold truncate">📎 Đã chọn file: {attachedFile.name}</span>
           <button type="button" onClick={() => setAttachedFile(null)} className="text-red-500 font-bold ml-2">✕</button>
         </div>
       )}
-
       <div className="flex gap-2 items-center">
         <label className="cursor-pointer bg-white hover:bg-purple-50 border border-purple-300 text-purple-700 text-xs font-bold px-3 py-2 rounded-lg shadow-sm flex items-center gap-1 shrink-0">
           📎 Gửi file
           <input type="file" onChange={handleFileUploadToAi} className="hidden" />
         </label>
-
         <input
           type="text"
           placeholder="Nhập nội dung trao đổi (VD: logo, quy trình...)"
@@ -295,7 +268,6 @@ function AiAssistant({ isJa, tasks, projectName }) {
           onKeyDown={(e) => { if (e.key === 'Enter') handleSendMessage(); }}
           className="flex-1 text-xs border border-purple-200 rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 bg-white"
         />
-
         <button
           type="button"
           onClick={handleSendMessage}
@@ -404,7 +376,6 @@ function MainApp({ user, onLogout }) {
   const [currentView, setCurrentView] = useState('p1');
   const [newProjectNameVi, setNewProjectNameVi] = useState('');
   const [newProjectNameJa, setNewProjectNameJa] = useState('');
-
   const [newTaskTitleVi, setNewTaskTitleVi] = useState('');
   const [newTaskTitleJa, setNewTaskTitleJa] = useState('');
   const [newTaskAssignee, setNewTaskAssignee] = useState('');
@@ -471,7 +442,6 @@ function MainApp({ user, onLogout }) {
           completed: false
         }))
       : [];
-
     const newTask = {
       id: Date.now(),
       projectId: currentView === 'overview' ? (projects[0]?.id || 'p1') : currentView,
@@ -492,7 +462,6 @@ function MainApp({ user, onLogout }) {
     if (!newTaskTitleVi.trim() && !newTaskTitleJa.trim()) return;
     const titleVi = newTaskTitleVi.trim() || newTaskTitleJa.trim();
     const titleJa = newTaskTitleJa.trim() || newTaskTitleVi.trim();
-
     const newTask = {
       id: Date.now(),
       projectId: currentView,
@@ -577,10 +546,8 @@ function MainApp({ user, onLogout }) {
     const textVi = (newChecklistTextVi[taskId] || '').trim();
     const textJa = (newChecklistTextJa[taskId] || '').trim();
     if (!textVi && !textJa) return;
-
     const finalVi = textVi || textJa;
     const finalJa = textJa || textVi;
-
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
         return { ...t, checklists: [...t.checklists, { id: Date.now(), textVi: finalVi, textJa: finalJa, completed: false }] };
@@ -637,10 +604,10 @@ function MainApp({ user, onLogout }) {
   const totalChecklistsCount = tasks.reduce((acc, t) => acc + t.checklists.length, 0);
   const completedChecklistsCount = tasks.reduce((acc, t) => acc + t.checklists.filter(c => c.completed).length, 0);
   const overallProgress = totalChecklistsCount > 0 ? Math.round((completedChecklistsCount / totalChecklistsCount) * 100) : 0;
-
+  
   const currentProjectObj = projects.find(p => p.id === currentView);
   const currentProjectTasks = tasks.filter(t => t.projectId === currentView);
-
+  
   const filteredTasks = currentProjectTasks.filter(t => {
     const searchNormalized = normalizeString(searchTerm);
     const titleVi = normalizeString(t.titleVi || t.title || '');
@@ -689,9 +656,7 @@ function MainApp({ user, onLogout }) {
           >
             📊 {isJa ? 'ダッシュボード' : 'Trang Tổng Hợp'}
           </button>
-
           <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{isJa ? 'プロジェクト一覧' : 'DANH MỤC DỰ ÁN'}</h2>
-
           <div className="flex-1 overflow-y-auto space-y-1">
             {projects.map(p => (
               <div
@@ -711,7 +676,6 @@ function MainApp({ user, onLogout }) {
               </div>
             ))}
           </div>
-
           <form onSubmit={handleAddProject} className="mt-4 pt-4 border-t border-gray-200 space-y-2">
             <input
               type="text"
@@ -735,7 +699,6 @@ function MainApp({ user, onLogout }) {
           {currentView === 'overview' ? (
             <div className="space-y-6">
               <h2 className="text-xl font-bold text-gray-800">📊 {isJa ? '全体レポート概要' : 'Báo Cáo Tổng Quan'}</h2>
-
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
                   <p className="text-xs text-gray-500 font-medium">{isJa ? '総プロジェクト数' : 'Tổng số dự án'}</p>
@@ -754,7 +717,6 @@ function MainApp({ user, onLogout }) {
                   <p className="text-2xl font-bold text-green-600 mt-1">{overallProgress}%</p>
                 </div>
               </div>
-
               <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-bold text-gray-800">🚀 {isJa ? '全体チェックリスト進捗バー' : 'Thanh Tiến Độ Tổng Quan Toàn Bộ Dự Án'}</span>
@@ -767,25 +729,20 @@ function MainApp({ user, onLogout }) {
             </div>
           ) : (
             <div className="space-y-6">
-              {/* TRỢ LÝ AI 1: BÓC TÁCH TASK */}
               <TaskParserAi 
                 isJa={isJa} 
                 onTaskCreated={handleAiTaskCreated} 
               />
-
-              {/* TRỢ LÝ AI 2: TRUY XUẤT DỮ LIỆU */}
               <AiAssistant 
                 isJa={isJa} 
                 tasks={currentProjectTasks} 
                 projectName={currentProjectObj ? getProjName(currentProjectObj) : ''} 
               />
-
               {(() => {
                 const projChecklists = currentProjectTasks.flatMap(t => t.checklists || []);
                 const projTotal = projChecklists.length;
                 const projCompleted = projChecklists.filter(c => c.completed).length;
                 const projPercent = projTotal > 0 ? Math.round((projCompleted / projTotal) * 100) : 0;
-
                 return (
                   <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
                     <div className="flex-1 w-full">
@@ -822,7 +779,6 @@ function MainApp({ user, onLogout }) {
                   <input type="text" placeholder={isJa ? 'タスク名 (日本語)' : 'Tên task (Tiếng Nhật)'} value={newTaskTitleJa} onChange={(e) => setNewTaskTitleJa(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-blue-500 md:col-span-2" />
                   <input type="text" placeholder={isJa ? '担当者' : 'Người phụ trách'} value={newTaskAssignee} onChange={(e) => setNewTaskAssignee(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-blue-500" />
                   <input type="date" value={newTaskDueDate} onChange={(e) => setNewTaskDueDate(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-xs text-gray-600" />
-
                   <div className="flex gap-2 md:col-span-6 justify-between items-center pt-2">
                     <div className="flex gap-2 items-center">
                       <span className="text-xs text-gray-500 font-medium">{isJa ? '優先度:' : 'Mức ưu tiên:'}</span>
@@ -882,14 +838,12 @@ function MainApp({ user, onLogout }) {
                           <span className="font-semibold text-gray-700 text-sm">{col.icon} {isJa ? col.labelJa : col.labelVi}</span>
                           <span className="bg-white text-gray-600 text-xs px-2 py-0.5 rounded-full border border-gray-200">{statusTasks.length}</span>
                         </div>
-
                         {statusTasks.map(task => {
                           const checklists = task.checklists || [];
                           const totalItems = checklists.length;
                           const completedItems = checklists.filter(c => c.completed).length;
                           const progressPercent = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
                           const priorityInfo = PRIORITIES[task.priority] || PRIORITIES['MEDIUM'];
-
                           return (
                             <div key={task.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
                               <div className="flex justify-between items-start gap-2">
@@ -1005,7 +959,6 @@ function MainApp({ user, onLogout }) {
                                     <input type="file" onChange={(e) => handleFileUpload(task.id, e)} className="hidden" />
                                   </label>
                                 </div>
-
                                 {task.attachments && task.attachments.length > 0 ? (
                                   <div className="space-y-1">
                                     {task.attachments.map(att => (
@@ -1020,7 +973,6 @@ function MainApp({ user, onLogout }) {
                                 ) : (
                                   <p className="text-[10px] text-gray-400 italic">{isJa ? '資料なし' : 'Chưa có file hay link nào'}</p>
                                 )}
-
                                 <div className="space-y-1 pt-1 border-t border-dashed border-gray-200">
                                   <input type="text" placeholder={isJa ? '資料名 (例: 契約書)' : 'Tên link (VD: Tài liệu thiết kế)'} value={attNameInputs[task.id] || ''} onChange={(e) => setAttNameInputs({ ...attNameInputs, [task.id]: e.target.value })} className="w-full text-[11px] border border-gray-200 rounded px-2 py-1 focus:outline-none" />
                                   <div className="flex gap-1">
